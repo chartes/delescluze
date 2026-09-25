@@ -85,10 +85,10 @@
   <!-- Libelles courts appeles par le mode="a" de la generique.
        Sans ces templates, le fallback imprime <facsimile mode="a">,
        <correspDesc mode="a">, etc. en rouge dans l'interface. -->
-  <xsl:template match="tei:facsimile" mode="a" priority="20">
+  <xsl:template match="tei:figure[@type = 'facsimile']" mode="a" priority="20">
     <xsl:choose>
-      <xsl:when test="tei:ptr[@target]">
-        <a class="facsimile" href="{tei:ptr[1]/@target}" target="_blank" rel="noopener">
+      <xsl:when test=".//tei:ptr[@target]">
+        <a class="facsimile" href="{(.//tei:ptr)[1]/@target}" target="_blank" rel="noopener">
           <xsl:value-of select="normalize-space((tei:graphic/tei:desc | tei:desc)[1])"/>
         </a>
       </xsl:when>
@@ -119,14 +119,14 @@
     <xsl:apply-imports/>
   </xsl:template>
 
-  <xsl:template match="tei:facsimile" priority="20">
+  <xsl:template match="tei:figure[@type = 'facsimile']" priority="20">
     <!-- autopilote 2026-09-11 (B6) : id du facsimile, cible des liens de page « {p. 001} » (a.pb.facs, href="#facs-…") -->
     <div class="facsimile">
       <xsl:if test="@xml:id"><xsl:attribute name="id"><xsl:value-of select="@xml:id"/></xsl:attribute></xsl:if>
       <xsl:apply-templates select="tei:graphic"/>
-      <xsl:if test="tei:ptr[@type = 'viewer'][@target]">
+      <xsl:if test=".//tei:ptr[@type = 'viewer'][@target]">
         <p class="viewer-link">
-          <a href="{tei:ptr[@type = 'viewer'][1]/@target}" target="_blank" rel="noopener">
+          <a href="{(.//tei:ptr[@type = 'viewer'])[1]/@target}" target="_blank" rel="noopener">
             <xsl:text>Voir dans la salle des inventaires virtuelle</xsl:text>
           </a>
         </p>
@@ -134,12 +134,12 @@
     </div>
   </xsl:template>
 
-  <xsl:template match="tei:correspDesc" mode="a" priority="20">
+  <xsl:template match="tei:ab[@type = 'correspDesc']" mode="a" priority="20">
     <span class="correspDesc">
-      <xsl:value-of select="normalize-space(tei:correspAction[@type='sent'])"/>
-      <xsl:if test="tei:correspAction[@type='received']">
+      <xsl:value-of select="normalize-space(tei:seg[@type='sent'])"/>
+      <xsl:if test="tei:seg[@type='received']">
         <xsl:text> à </xsl:text>
-        <xsl:value-of select="normalize-space(tei:correspAction[@type='received'])"/>
+        <xsl:value-of select="normalize-space(tei:seg[@type='received'])"/>
       </xsl:if>
       <xsl:if test="tei:date">
         <xsl:text>, </xsl:text>
@@ -148,12 +148,12 @@
     </span>
   </xsl:template>
 
-  <xsl:template match="tei:correspDesc" priority="20">
+  <xsl:template match="tei:ab[@type = 'correspDesc']" priority="20">
     <p class="correspDesc">
-      <xsl:value-of select="normalize-space(tei:correspAction[@type='sent'])"/>
-      <xsl:if test="tei:correspAction[@type='received']">
+      <xsl:value-of select="normalize-space(tei:seg[@type='sent'])"/>
+      <xsl:if test="tei:seg[@type='received']">
         <xsl:text> à </xsl:text>
-        <xsl:value-of select="normalize-space(tei:correspAction[@type='received'])"/>
+        <xsl:value-of select="normalize-space(tei:seg[@type='received'])"/>
       </xsl:if>
       <xsl:if test="tei:date">
         <xsl:text>, </xsl:text>
@@ -162,11 +162,11 @@
     </p>
   </xsl:template>
 
-  <xsl:template match="tei:correspAction" mode="a" priority="20">
+  <xsl:template match="tei:ab[@type = 'correspDesc']/tei:seg" mode="a" priority="20">
     <span class="correspAction"><xsl:apply-templates/></span>
   </xsl:template>
 
-  <xsl:template match="tei:correspAction" priority="20">
+  <xsl:template match="tei:ab[@type = 'correspDesc']/tei:seg" priority="20">
     <span class="correspAction"><xsl:apply-templates/></span>
   </xsl:template>
 
@@ -348,5 +348,31 @@
       </xsl:for-each>
     </article>
   </xsl:template>
+
+  <!-- 2026-09-25 : mise en conformite du TEI contre tei_all (1 780 erreurs, dont
+       510 facsimile/ptr hors contexte). Les remplacements ci-dessous rendent EXACTEMENT
+       le meme HTML qu'avant le remodelage ; voir le releve de la seance.
+
+       - <facsimile> n'existe qu'entre <teiHeader> et <text> ; la, il serait hors du
+         fragment DTS servi (<dts:wrapper> sans teiHeader) et l'image disparaitrait.
+         Le bloc est donc devenu <figure type="facsimile">, admis dans la division de page,
+         et le <ptr> du visualiseur, interdit dans <figure>, est porte par un <ab type="viewer">.
+       - <head> n'admet pas @when : la date est portee par un <date> qui enveloppe le
+         contenu du titre ; il est rendu de maniere transparente.
+       - <person> n'existe que dans <listPerson> ; le conteneur est rendu transparent.
+       - <ref> n'admet pas author/pubPlace/publisher/biblScope : ils sont dans un <bibl>,
+         lui aussi transparent.
+       - <idno> n'a pas de @target : l'URL est passee en @corresp, rendue comme @target
+         l'etait (modele nomme "ref" de la generique). -->
+  <xsl:template match="tei:ab[@type = 'viewer']" priority="20"/>
+  <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
+  <!-- mode="title" (sommaire du document entier) : la generique y remplace une date par son
+       texte brut (hteiml/xsl/common.xsl l. 940), ce qui aplatirait le <choice> et les <hi>
+       des titres de journee. Le <date> y est donc transparent lui aussi. -->
+  <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
+  <xsl:template match="tei:div[@type = 'index-lettre']/tei:listPerson" priority="20"><xsl:apply-templates/></xsl:template>
+  <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
+  <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
+  <xsl:template match="tei:idno/@corresp"><xsl:call-template name="ref"/></xsl:template>
 
 </xsl:transform>
