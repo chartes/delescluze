@@ -46,15 +46,6 @@
 
   <xsl:template match="tei:person/tei:note" mode="fn"/>
 
-  <!-- 2026-09-11 (D3) : lettre d'index de chaque personne (index-personnes-X) et cibles des
-       « Voir aussi » de l'ancien site ; fichier généré, voir son commentaire. -->
-  <xsl:variable name="delescluze-persons" select="document('delescluze-persons.xml')/persons"/>
-  <!-- D14d (autopilote 2026-09-12) : mois et intervalles de dates des pages de carnet,
-       produits par dots-autopilot/scripts/d14d_mois_sidecar.py depuis le TEI. -->
-  <xsl:variable name="delescluze-mois" select="document('delescluze-mois.xml')/delescluze-mois"/>
-  <!-- 2026-09-14 : notice bibliographique → unité citable qui la sert + ancre
-       (delescluze-bibl.xml, produit par dots-autopilot/scripts/delescluze_bibl_sidecar.py). -->
-  <xsl:variable name="delescluze-bibl" select="document('delescluze-bibl.xml')/delescluze-bibl"/>
 
   <!-- 2026-09-12 (D20) : chaque notice est devenue une UNITÉ citable (niveau « personne » du
        refsDecl, 139 unités), pour que les personnes figurent dans la table des matières. Un renvoi
@@ -63,13 +54,14 @@
        notices détaillées ne sont plus là — une ancre y mènerait à une page qui ne montre que la
        liste des noms. Le repli sur la lettre, puis sur la rubrique, reste pour un identifiant que
        le side-car ne connaît pas. -->
+  <!-- 2026-09-25 : chaque notice etant une unite citable, la cible est l'identifiant de la
+       personne lui-meme ; la lettre d'index ne servait plus de repli que pour un identifiant
+       vide. Le compagnon delescluze-persons.xml disparait donc d'ici. -->
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
-    <xsl:variable name="letter" select="$delescluze-persons/p[@id = $pid]/@letter"/>
     <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
     <xsl:choose>
       <xsl:when test="$pid != ''"><xsl:value-of select="$pid"/></xsl:when>
-      <xsl:when test="$letter"><xsl:value-of select="$letter"/></xsl:when>
       <xsl:otherwise>index-personnes</xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -145,7 +137,6 @@
   <xsl:template match="tei:figure[@type = 'facsimile']" priority="20">
     <!-- autopilote 2026-09-11 (B6) : id du facsimile, cible des liens de page « {p. 001} » (a.pb.facs, href="#facs-…") -->
     <xsl:variable name="pid" select="../@xml:id"/>
-    <xsl:variable name="pg" select="$delescluze-mois/page[@id = $pid]"/>
     <div class="facsimile">
       <xsl:if test="@xml:id"><xsl:attribute name="id"><xsl:value-of select="@xml:id"/></xsl:attribute></xsl:if>
       <xsl:apply-templates select="tei:graphic"/>
@@ -168,34 +159,30 @@
          intervalle de dates de la page (nav#pages-list). Les pages de carnet sont sous le
          niveau editable de la collection : les liens prennent la forme
          ?refId=<carnet>#<page> (cf. D8). -->
-    <xsl:if test="$pg">
+    <!-- D14d (autopilote 2026-09-12), recalcule le 2026-09-25 : intervalle de dates de la page
+         (nav#pages-list de l'ancien site) et menu « Aller au mois » (nav#months-list).
+         Le compagnon delescluze-mois.xml est retire : l'intervalle et le mois courant se
+         deduisent des <date when> des journees de la page elle-meme, qui sont dans le fragment
+         servi. Le releve des 17 mois, lui, est un fait global de l'edition : aucune unite
+         citable ne le porte, il est donc inscrit ici (voir le modele « dl-mois-liste »).
+         Les pages de carnet sont celles dont l'identifiant commence par « carnet », comme
+         ailleurs dans cette feuille (#person, #le-projet-, #index-personnes-). Les pages des
+         lettres et des passages n'ont pas ce menu, elles ne l'avaient pas non plus sur l'ELEC. -->
+    <xsl:if test="starts-with($pid, 'carnet')">
+      <xsl:variable name="dates" select="../descendant::tei:div[@type = 'day']/tei:head/tei:date/@when"/>
       <div class="dl-page-nav">
-        <xsl:if test="normalize-space($pg/@libelle) != ''">
-          <p class="dl-page-dates"><xsl:value-of select="$pg/@libelle"/></p>
+        <xsl:if test="$dates">
+          <p class="dl-page-dates">
+            <xsl:call-template name="dl-intervalle">
+              <xsl:with-param name="a" select="$dates[1]"/>
+              <xsl:with-param name="b" select="$dates[last()]"/>
+            </xsl:call-template>
+          </p>
         </xsl:if>
         <details class="dl-mois">
           <summary>Aller au mois</summary>
           <ul class="dl-mois-liste">
-            <xsl:for-each select="$delescluze-mois/mois">
-              <li>
-                <!-- Mois courant rendu comme un ÉLÉMENT distinct, même raison que pour les
-                     lettres : DoTS-vue réécrit les ancres internes et normalise leur classe, en
-                     perdant `aria-current` comme un second jeton de classe. Le mois où l'on se
-                     trouve n'a d'ailleurs pas à être un lien. -->
-                <xsl:choose>
-                  <xsl:when test="contains(concat(' ', $pg/@mois, ' '), concat(' ', @id, ' '))">
-                    <strong class="dl-mois-courant" aria-current="page">
-                      <xsl:value-of select="@libelle"/>
-                    </strong>
-                  </xsl:when>
-                  <xsl:otherwise>
-                    <a class="dl-mois-lien" href="/delescluze/document/delescluze-edition?refId={@ancetre}#{@page}">
-                      <xsl:value-of select="@libelle"/>
-                    </a>
-                  </xsl:otherwise>
-                </xsl:choose>
-              </li>
-            </xsl:for-each>
+            <xsl:call-template name="dl-mois-liste"/>
           </ul>
         </details>
       </div>
@@ -385,15 +372,30 @@
        « ../sources-et-bibliographie.html#nougaretParinetClavaud ».
        La classe reste « bibl » : DoTS-vue ne garde que le PREMIER jeton de classe, et le CSS du
        corpus s'appuie dessus (#main #article .bibl). -->
+  <!-- 2026-09-25 : l'ancre est CALCULEE, le compagnon delescluze-bibl.xml est retire.
+       Les 370 <bibl xml:id> du document sont soit dans « sources-et-bibliographie »,
+       soit dans le doublon de text/back/listBibl, qui n'appartient a aucune unite citable :
+       ses identifiants « -bis » visent donc la notice identique de la page de bibliographie,
+       comme le faisait l'ancien site ELEC. Les 38 renvois du corps visent tous une notice
+       existante (verifie), il n'y a donc plus de repli sans ancre. Les quatre identifiants
+       accentues prennent l'ancre ASCII posee par le modele « bibl-ascii-anchor » ci-dessus. -->
   <xsl:template match="tei:ref[@type = 'bibl'][starts-with(@target, '#')]" priority="25">
-    <xsl:variable name="bid" select="substring-after(@target, '#')"/>
-    <xsl:variable name="href" select="$delescluze-bibl/b[@id = $bid]/@href"/>
+    <xsl:variable name="cible" select="substring-after(@target, '#')"/>
+    <xsl:variable name="bid">
+      <xsl:choose>
+        <xsl:when test="substring($cible, string-length($cible) - 3) = '-bis'">
+          <xsl:value-of select="substring($cible, 1, string-length($cible) - 4)"/>
+        </xsl:when>
+        <xsl:otherwise><xsl:value-of select="$cible"/></xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="ascii" select="translate($bid, $accents-from, $accents-to)"/>
     <a class="bibl">
       <xsl:attribute name="href">
+        <xsl:text>/delescluze/document/delescluze-edition?refId=sources-et-bibliographie#</xsl:text>
         <xsl:choose>
-          <xsl:when test="$href"><xsl:value-of select="$href"/></xsl:when>
-          <!-- identifiant inconnu du side-car : au moins la page de bibliographie. -->
-          <xsl:otherwise>/delescluze/document/delescluze-edition?refId=sources-et-bibliographie</xsl:otherwise>
+          <xsl:when test="$ascii != $bid"><xsl:text>bibl-</xsl:text><xsl:value-of select="$ascii"/></xsl:when>
+          <xsl:otherwise><xsl:value-of select="$bid"/></xsl:otherwise>
         </xsl:choose>
       </xsl:attribute>
       <xsl:apply-templates/>
@@ -418,22 +420,38 @@
   <xsl:template match="tei:person" priority="20">
     <article class="person" id="{@xml:id}">
       <h2><xsl:apply-templates select="tei:persName[1]/node()"/></h2>
-      <xsl:apply-templates select="node()[not(self::tei:persName[1])]"/>
-      <!-- 2026-09-11 (D3b) : « Personne citée dans », comme la section linksToEdition de l'ancien site :
-           occurrences @ref du TEI, groupées par carnet, passage, lettre ou introduction (delescluze-persons.xml). -->
-      <xsl:variable name="cited" select="$delescluze-persons/p[@id = current()/@xml:id]/cited"/>
+      <xsl:apply-templates select="node()[not(self::tei:persName[1])][not(self::tei:listRef[@type = 'linksToEdition'])]"/>
+      <!-- 2026-09-11 (D3b) : « Personne citée dans », comme la section linksToEdition de l'ancien site.
+           2026-09-25 : les occurrences sont portees par le TEI (un <listRef type="linksToEdition">
+           par unite d'edition : un <ref type="groupe"> qui la nomme, puis un <ref> par unite citable
+           ou le nom figure). Aucun fragment DTS ne voit le reste du document : la liste ne peut pas
+           etre recalculee ici, elle appartient a l'index lui-meme. @corresp porte l'unite a ouvrir
+           quand la cible est sous le niveau editable de DoTS-vue ; sans lui, la cible s'ouvre seule. -->
+      <xsl:variable name="cited" select="tei:listRef[@type = 'linksToEdition']"/>
       <xsl:if test="$cited">
         <section class="linksToEdition">
           <p class="linksToEdition-head">Personne citée dans :</p>
           <ul>
             <xsl:for-each select="$cited">
               <li>
-                <xsl:value-of select="@group"/>
+                <xsl:value-of select="tei:ref[@type = 'groupe'][1]"/>
                 <xsl:text> : </xsl:text>
-                <xsl:for-each select="u">
+                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
                   <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-                  <!-- @href calculé par le générateur : unité ouvrable par DoTS-vue (editByLevel) + #unité -->
-                  <a href="{@href}"><xsl:value-of select="@label"/></a>
+                  <a>
+                    <xsl:attribute name="href">
+                      <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
+                      <xsl:choose>
+                        <xsl:when test="@corresp">
+                          <xsl:value-of select="substring-after(@corresp, '#')"/>
+                          <xsl:text>#</xsl:text>
+                          <xsl:value-of select="substring-after(@target, '#')"/>
+                        </xsl:when>
+                        <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
+                      </xsl:choose>
+                    </xsl:attribute>
+                    <xsl:value-of select="."/>
+                  </a>
                 </xsl:for-each>
               </li>
             </xsl:for-each>
@@ -442,10 +460,11 @@
       </xsl:if>
       <!-- autopilote 2026-09-11 (B6) : « #top » n'existe pas dans le fragment ; retour en tête de la lettre d'index
            (section index-personnes-X, barre A–Z), comme le « Top » de l'ancien site. -->
-      <!-- 2026-09-11 (D3) : dans le fragment servi, la div de la lettre n'est pas ancêtre (href="#") :
-           lettre prise dans delescluze-persons.xml, lien absolu vers le haut de la lettre. -->
-      <xsl:variable name="letter" select="$delescluze-persons/p[@id = current()/@xml:id]/@letter"/>
-      <p><a class="back" href="/delescluze/document/delescluze-edition?refId={($letter | ancestor::tei:div[@xml:id][1]/@xml:id)[1]}">Retour</a></p>
+      <!-- 2026-09-11 (D3) : dans le fragment servi, la div de la lettre n'est pas ancêtre (href="#").
+           2026-09-25 : la lettre d'index se deduit du nom lui-meme — l'index est alphabetique,
+           et les 139 notices le verifient. -->
+      <xsl:variable name="letter"><xsl:call-template name="dl-lettre-index"/></xsl:variable>
+      <p><a class="back" href="/delescluze/document/delescluze-edition?refId={$letter}">Retour</a></p>
     </article>
   </xsl:template>
 
@@ -460,29 +479,23 @@
        contient aucun id person* — l'ancre ne pointait donc sur rien et le lecteur tombait sur la
        simple liste des noms. Passage au modèle person-href (D20), qui vise l'unité de la personne. -->
   <xsl:template match="tei:person/tei:note[@type = 'seeAlso']" priority="25">
-    <xsl:variable name="see" select="$delescluze-persons/p[@id = current()/parent::tei:person/@xml:id]/see"/>
+    <!-- 2026-09-25 : les renvois « Voir aussi » sont des donnees editoriales relevees sur
+         l'ancien site ; ils sont desormais dans le TEI, en <ref> vers la notice visee. -->
+    <xsl:variable name="see" select="tei:ref[starts-with(@target, '#person')]"/>
     <xsl:choose>
       <xsl:when test="$see">
         <p class="seeAlso crossReferences">
           <xsl:text>Voir aussi : </xsl:text>
           <xsl:for-each select="$see">
             <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-            <xsl:variable name="t" select="@target"/>
-            <xsl:choose>
-              <!-- La personne visée est une unité citable : on y va directement. -->
-              <xsl:when test="$delescluze-persons/p[@id = $t]">
-                <a>
-                  <xsl:attribute name="href">
-                    <xsl:call-template name="person-href">
-                      <xsl:with-param name="pid" select="$t"/>
-                    </xsl:call-template>
-                  </xsl:attribute>
-                  <xsl:value-of select="@label"/>
-                </a>
-              </xsl:when>
-              <!-- Cible hors index : libellé nu, plutôt qu'un lien mort. -->
-              <xsl:otherwise><xsl:value-of select="@label"/></xsl:otherwise>
-            </xsl:choose>
+            <a>
+              <xsl:attribute name="href">
+                <xsl:call-template name="person-href">
+                  <xsl:with-param name="pid" select="substring-after(@target, '#')"/>
+                </xsl:call-template>
+              </xsl:attribute>
+              <xsl:value-of select="."/>
+            </a>
           </xsl:for-each>
         </p>
       </xsl:when>
@@ -631,5 +644,135 @@
   <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:idno/@corresp"><xsl:call-template name="ref"/></xsl:template>
+
+  <!-- ================================================================
+       Releve des 17 mois des ephemerides et mise en forme des dates.
+
+       2026-09-25 : le depot ne doit contenir qu'un TEI et ses feuilles ; les trois
+       compagnons charges par document() n'y etaient pas versionnes, et la feuille
+       deployee seule cassait le corpus. Tout ce qui se deduit du fragment servi est
+       desormais calcule ici. Le tableau ci-dessous est la seule exception : la liste des
+       mois et la page ou chacun commence sont un fait de l'edition entiere, qu'aucun
+       fragment ne porte. Il est verifie contre les <date when> du TEI (17 mois, du
+       1851-11 au 1853-04) ; s'il fallait rouvrir les ephemerides, c'est ici qu'il faut
+       le reprendre.
+       ================================================================ -->
+  <xsl:template name="dl-mois-liste">
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-01</xsl:with-param><xsl:with-param name="libelle">janvier 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-02</xsl:with-param><xsl:with-param name="libelle">février 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-03</xsl:with-param><xsl:with-param name="libelle">mars 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page006</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-04</xsl:with-param><xsl:with-param name="libelle">avril 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page009</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-05</xsl:with-param><xsl:with-param name="libelle">mai 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page031</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-06</xsl:with-param><xsl:with-param name="libelle">juin 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page037</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-07</xsl:with-param><xsl:with-param name="libelle">juillet 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page046</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-08</xsl:with-param><xsl:with-param name="libelle">août 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page051</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-09</xsl:with-param><xsl:with-param name="libelle">septembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page060</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-10</xsl:with-param><xsl:with-param name="libelle">octobre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page074</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-11</xsl:with-param><xsl:with-param name="libelle">novembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page004</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-12</xsl:with-param><xsl:with-param name="libelle">décembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page011</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-01</xsl:with-param><xsl:with-param name="libelle">janvier 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page016</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-02</xsl:with-param><xsl:with-param name="libelle">février 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page021</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-03</xsl:with-param><xsl:with-param name="libelle">mars 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page025</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-04</xsl:with-param><xsl:with-param name="libelle">avril 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page030</xsl:with-param></xsl:call-template>
+  </xsl:template>
+
+  <!-- Le mois ou l'on se trouve est rendu comme un ELEMENT distinct : DoTS-vue ne garde que
+       le premier jeton de classe des liens internes, et le mois courant n'a pas a etre un lien. -->
+  <xsl:template name="dl-mois-item">
+    <xsl:param name="id"/>
+    <xsl:param name="libelle"/>
+    <xsl:param name="ancetre"/>
+    <xsl:param name="page"/>
+    <li>
+      <xsl:choose>
+        <xsl:when test="../descendant::tei:div[@type = 'day']/tei:head/tei:date[substring(@when, 1, 7) = $id]">
+          <strong class="dl-mois-courant" aria-current="page">
+            <xsl:value-of select="$libelle"/>
+          </strong>
+        </xsl:when>
+        <xsl:otherwise>
+          <a class="dl-mois-lien" href="/delescluze/document/delescluze-edition?refId={$ancetre}#{$page}">
+            <xsl:value-of select="$libelle"/>
+          </a>
+        </xsl:otherwise>
+      </xsl:choose>
+    </li>
+  </xsl:template>
+
+  <!-- Intervalle de dates d'une page, dans la forme de l'ancien site :
+       « 26 avril 1852 », « 3-5 février 1852 », « 29 février-8 mars 1852 »,
+       « 24 décembre 1852-1er janvier 1853 ». Verifie sur les 119 pages de carnet. -->
+  <xsl:template name="dl-intervalle">
+    <xsl:param name="a"/>
+    <xsl:param name="b"/>
+    <xsl:choose>
+      <xsl:when test="string($a) = string($b)">
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+      </xsl:when>
+      <xsl:when test="substring($a, 1, 7) = substring($b, 1, 7)">
+        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:when>
+      <xsl:when test="substring($a, 1, 4) = substring($b, 1, 4)">
+        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text> </xsl:text>
+        <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="dl-date">
+    <xsl:param name="d"/>
+    <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$d"/></xsl:call-template>
+    <xsl:text> </xsl:text>
+    <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$d"/></xsl:call-template>
+    <xsl:text> </xsl:text>
+    <xsl:value-of select="substring($d, 1, 4)"/>
+  </xsl:template>
+
+  <xsl:template name="dl-jour">
+    <xsl:param name="d"/>
+    <xsl:choose>
+      <xsl:when test="substring($d, 9, 2) = '01'">1er</xsl:when>
+      <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="dl-nom-mois">
+    <xsl:param name="d"/>
+    <xsl:variable name="m" select="substring($d, 6, 2)"/>
+    <xsl:choose>
+      <xsl:when test="$m = '01'">janvier</xsl:when>
+      <xsl:when test="$m = '02'">février</xsl:when>
+      <xsl:when test="$m = '03'">mars</xsl:when>
+      <xsl:when test="$m = '04'">avril</xsl:when>
+      <xsl:when test="$m = '05'">mai</xsl:when>
+      <xsl:when test="$m = '06'">juin</xsl:when>
+      <xsl:when test="$m = '07'">juillet</xsl:when>
+      <xsl:when test="$m = '08'">août</xsl:when>
+      <xsl:when test="$m = '09'">septembre</xsl:when>
+      <xsl:when test="$m = '10'">octobre</xsl:when>
+      <xsl:when test="$m = '11'">novembre</xsl:when>
+      <xsl:otherwise>décembre</xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <!-- Lettre d'index d'une notice : premiere lettre du nom, sans accent, en capitale.
+       Le fragment d'une notice ne contient pas la division de sa lettre ; le nom, lui, y est. -->
+  <xsl:template name="dl-lettre-index">
+    <xsl:text>index-personnes-</xsl:text>
+    <xsl:value-of select="translate(
+      substring(translate(normalize-space(tei:persName[1]), $accents-from, $accents-to), 1, 1),
+      'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
+  </xsl:template>
 
 </xsl:transform>

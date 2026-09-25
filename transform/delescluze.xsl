@@ -46,20 +46,17 @@
 
   <xsl:template match="tei:person/tei:note" mode="fn"/>
 
-  <!-- 2026-09-11 (D3) : lettre d'index de chaque personne (index-personnes-X) et cibles des
-       « Voir aussi » de l'ancien site ; fichier généré, voir son commentaire. -->
-  <xsl:variable name="delescluze-persons" select="document('delescluze-persons.xml')/persons"/>
 
+  <!-- 2026-09-25 : chaque notice etant une unite citable, la cible est l'identifiant de la
+       personne lui-meme ; la lettre d'index ne servait plus de repli que pour un identifiant
+       vide. Le compagnon delescluze-persons.xml disparait donc d'ici. -->
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
-    <xsl:variable name="letter" select="$delescluze-persons/p[@id = $pid]/@letter"/>
     <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
     <xsl:choose>
-      <xsl:when test="$letter"><xsl:value-of select="$letter"/></xsl:when>
+      <xsl:when test="$pid != ''"><xsl:value-of select="$pid"/></xsl:when>
       <xsl:otherwise>index-personnes</xsl:otherwise>
     </xsl:choose>
-    <xsl:text>#</xsl:text>
-    <xsl:value-of select="$pid"/>
   </xsl:template>
 
   <xsl:template name="noteback">
@@ -236,22 +233,38 @@
   <xsl:template match="tei:person" priority="20">
     <article class="person" id="{@xml:id}">
       <h2><xsl:apply-templates select="tei:persName[1]/node()"/></h2>
-      <xsl:apply-templates select="node()[not(self::tei:persName[1])]"/>
-      <!-- 2026-09-11 (D3b) : « Personne citée dans », comme la section linksToEdition de l'ancien site :
-           occurrences @ref du TEI, groupées par carnet, passage, lettre ou introduction (delescluze-persons.xml). -->
-      <xsl:variable name="cited" select="$delescluze-persons/p[@id = current()/@xml:id]/cited"/>
+      <xsl:apply-templates select="node()[not(self::tei:persName[1])][not(self::tei:listRef[@type = 'linksToEdition'])]"/>
+      <!-- 2026-09-11 (D3b) : « Personne citée dans », comme la section linksToEdition de l'ancien site.
+           2026-09-25 : les occurrences sont portees par le TEI (un <listRef type="linksToEdition">
+           par unite d'edition : un <ref type="groupe"> qui la nomme, puis un <ref> par unite citable
+           ou le nom figure). Aucun fragment DTS ne voit le reste du document : la liste ne peut pas
+           etre recalculee ici, elle appartient a l'index lui-meme. @corresp porte l'unite a ouvrir
+           quand la cible est sous le niveau editable de DoTS-vue ; sans lui, la cible s'ouvre seule. -->
+      <xsl:variable name="cited" select="tei:listRef[@type = 'linksToEdition']"/>
       <xsl:if test="$cited">
         <section class="linksToEdition">
           <p class="linksToEdition-head">Personne citée dans :</p>
           <ul>
             <xsl:for-each select="$cited">
               <li>
-                <xsl:value-of select="@group"/>
+                <xsl:value-of select="tei:ref[@type = 'groupe'][1]"/>
                 <xsl:text> : </xsl:text>
-                <xsl:for-each select="u">
+                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
                   <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-                  <!-- @href calculé par le générateur : unité ouvrable par DoTS-vue (editByLevel) + #unité -->
-                  <a href="{@href}"><xsl:value-of select="@label"/></a>
+                  <a>
+                    <xsl:attribute name="href">
+                      <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
+                      <xsl:choose>
+                        <xsl:when test="@corresp">
+                          <xsl:value-of select="substring-after(@corresp, '#')"/>
+                          <xsl:text>#</xsl:text>
+                          <xsl:value-of select="substring-after(@target, '#')"/>
+                        </xsl:when>
+                        <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
+                      </xsl:choose>
+                    </xsl:attribute>
+                    <xsl:value-of select="."/>
+                  </a>
                 </xsl:for-each>
               </li>
             </xsl:for-each>
@@ -260,10 +273,11 @@
       </xsl:if>
       <!-- autopilote 2026-09-11 (B6) : « #top » n'existe pas dans le fragment ; retour en tête de la lettre d'index
            (section index-personnes-X, barre A–Z), comme le « Top » de l'ancien site. -->
-      <!-- 2026-09-11 (D3) : dans le fragment servi, la div de la lettre n'est pas ancêtre (href="#") :
-           lettre prise dans delescluze-persons.xml, lien absolu vers le haut de la lettre. -->
-      <xsl:variable name="letter" select="$delescluze-persons/p[@id = current()/@xml:id]/@letter"/>
-      <p><a class="back" href="/delescluze/document/delescluze-edition?refId={($letter | ancestor::tei:div[@xml:id][1]/@xml:id)[1]}">Retour</a></p>
+      <!-- 2026-09-11 (D3) : dans le fragment servi, la div de la lettre n'est pas ancêtre (href="#").
+           2026-09-25 : la lettre d'index se deduit du nom lui-meme — l'index est alphabetique,
+           et les 139 notices le verifient. -->
+      <xsl:variable name="letter"><xsl:call-template name="dl-lettre-index"/></xsl:variable>
+      <p><a class="back" href="/delescluze/document/delescluze-edition?refId={$letter}">Retour</a></p>
     </article>
   </xsl:template>
 
@@ -274,14 +288,23 @@
   <!-- 2026-09-11 (D3) : « Voir aussi » cliquable, comme la section crossReferences de l'ancien site
        (libellés identiques au texte TEI, cibles relevées sur l'ancien site). -->
   <xsl:template match="tei:person/tei:note[@type = 'seeAlso']" priority="25">
-    <xsl:variable name="see" select="$delescluze-persons/p[@id = current()/parent::tei:person/@xml:id]/see"/>
+    <!-- 2026-09-25 : les renvois « Voir aussi » sont des donnees editoriales relevees sur
+         l'ancien site ; ils sont desormais dans le TEI, en <ref> vers la notice visee. -->
+    <xsl:variable name="see" select="tei:ref[starts-with(@target, '#person')]"/>
     <xsl:choose>
       <xsl:when test="$see">
         <p class="seeAlso crossReferences">
           <xsl:text>Voir aussi : </xsl:text>
           <xsl:for-each select="$see">
             <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-            <a href="/delescluze/document/delescluze-edition?refId={@letter}#{@target}"><xsl:value-of select="@label"/></a>
+            <a>
+              <xsl:attribute name="href">
+                <xsl:call-template name="person-href">
+                  <xsl:with-param name="pid" select="substring-after(@target, '#')"/>
+                </xsl:call-template>
+              </xsl:attribute>
+              <xsl:value-of select="."/>
+            </a>
           </xsl:for-each>
         </p>
       </xsl:when>
@@ -374,5 +397,18 @@
   <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:idno/@corresp"><xsl:call-template name="ref"/></xsl:template>
+
+  <xsl:variable name="accents-from">àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ</xsl:variable>
+  <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
+
+
+  <!-- Lettre d'index d'une notice : premiere lettre du nom, sans accent, en capitale.
+       Le fragment d'une notice ne contient pas la division de sa lettre ; le nom, lui, y est. -->
+  <xsl:template name="dl-lettre-index">
+    <xsl:text>index-personnes-</xsl:text>
+    <xsl:value-of select="translate(
+      substring(translate(normalize-space(tei:persName[1]), $accents-from, $accents-to), 1, 1),
+      'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
+  </xsl:template>
 
 </xsl:transform>
