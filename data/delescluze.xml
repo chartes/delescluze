@@ -8,7 +8,7 @@
         <principal ref="https://www.wikidata.org/wiki/Q2965963 https://data.bnf.fr/fr/ark:/12148/cb120148553 https://www.idref.fr/028280067">Christine Nougaret</principal>
       </titleStmt>
       <publicationStmt>
-        <publisher ref="https://www.wikidata.org/wiki/Q273570 https://data.bnf.fr/fr/ark:/12148/cb118634749 https://www.idref.fr/026375052 https://www.chartes.psl.eu/">École nationale des chartes – PSL</publisher>
+        <publisher ref="https://www.chartes.psl.eu/">École nationale des chartes – PSL</publisher>
         <date when="2015">2015</date>
         <idno>http://elec.enc.sorbonne.fr/delescluze/</idno><availability>
           <licence target="https://creativecommons.org/licenses/by-nc-nd/2.0/fr/">Creative Commons — Paternité, Pas d’utilisation commerciale, Pas de modification ; 2.0 France</licence>
