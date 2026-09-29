@@ -7,6 +7,9 @@
     <dct:publisher scope="collection" source="./collection.tsv" value="publisher"/>
     <dct:issued scope="collection" source="./collection.tsv" value="issued"/>
     <dct:description scope="collection" source="./collection.tsv" value="description"/>
+    <dct:license scope="collection" source="./collection.tsv" value="license"/>
+    <dct:rights scope="collection" source="./collection.tsv" value="rights"/>
+    <schema:license scope="collection" source="./collection.tsv" value="license"/>
     <schema:name scope="collection" source="./collection.tsv" value="title"/>
     <schema:author scope="collection" source="./collection.tsv" type="object">
       <dots:objectProperty name="@type" resourceId="all">schema:Person</dots:objectProperty>
