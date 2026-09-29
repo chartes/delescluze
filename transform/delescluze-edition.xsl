@@ -135,6 +135,16 @@
     <span class="l"><xsl:apply-templates/></span>
   </xsl:template>
 
+  <!-- 2026-09-29 : textes insérés dans les carnets (div.floatingText de l'ÉLEC, 192 blocs), encodés
+       <floatingText type="inserted"><body>. La générique en fait un <aside> et un <h1> à signet ;
+       l'ÉLEC les rendait en bloc, le titre (h5.floatingTextTitle) en gras et en retrait. -->
+  <xsl:template match="tei:floatingText" priority="20">
+    <div class="floatingText"><xsl:apply-templates select="tei:body/node()"/></div>
+  </xsl:template>
+  <xsl:template match="tei:floatingText/tei:body/tei:head" priority="20">
+    <p class="floatingTextTitle"><xsl:apply-templates/></p>
+  </xsl:template>
+
   <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
