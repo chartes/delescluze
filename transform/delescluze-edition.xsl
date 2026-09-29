@@ -3,7 +3,8 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:tei="http://www.tei-c.org/ns/1.0"
-  exclude-result-prefixes="tei">
+  xmlns:epub="http://www.idpf.org/2007/ops"
+  exclude-result-prefixes="tei epub">
 
   <xsl:import href="../hteiml/xsl/tei2html.xsl"/>
   <xsl:output indent="no"/><!-- autopilote 2026-09-11 : sinon DoTS-vue colle les mots (condense) -->
@@ -181,7 +182,79 @@
     </div>
   </xsl:template>
 
-  <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del]/tei:pb[1]" priority="12">
+  <!-- 2026-09-29 : notes d'apparat de la transcription (span.noteAnchor + span.apparatusNote de
+       l'ÉLEC, 431 restituées). Comme sur l'ÉLEC : appel « [a] » dans le texte, note affichée au
+       survol, dans l'état « Transcription » seulement (CSS du corpus) ; jamais en bas de page. -->
+  <xsl:template match="tei:note[@type = 'apparatus']" priority="20">
+    <span class="app" tabindex="0">
+      <span class="noteAnchor">[<xsl:value-of select="@n"/>]</span>
+      <span class="apparatusNote"><xsl:value-of select="@n"/>. <xsl:apply-templates/></span>
+    </span>
+  </xsl:template>
+  <xsl:template match="tei:note[@type = 'apparatus']" mode="fn"/>
+  <!-- La liste de bas de page (modèle "footnotes" de la générique) appelle le modèle nommé "note"
+       pour chaque note de la page (clé note-pb) : il est recopié ici de hteiml/xsl/tei2html.xsl
+       (l. 2538-2593, inchangé) sous une seule condition, pour en écarter les notes d'apparat. -->
+  <xsl:template name="note">
+    <xsl:if test="not(@type = 'apparatus')">
+    <!-- identifiant de la note -->
+    <xsl:variable name="id">
+      <xsl:call-template name="id"/>
+    </xsl:variable>
+    <xsl:variable name="text">
+      <xsl:for-each select="text()">
+        <xsl:value-of select="normalize-space(.)"/>
+      </xsl:for-each>
+    </xsl:variable>
+    <xsl:variable name="element">
+      <xsl:choose>
+        <xsl:when test="$format = $epub2">div</xsl:when>
+        <xsl:otherwise>aside</xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:element name="{$element}" namespace="http://www.w3.org/1999/xhtml">
+      <xsl:attribute name="class">
+        <xsl:value-of select="normalize-space(concat(@rend, ' ', @resp, ' ', @type, ' ', @place, ' note'))"/>
+      </xsl:attribute>
+      <xsl:attribute name="id">
+        <xsl:value-of select="$id"/>
+      </xsl:attribute>
+      <xsl:if test="$format = $epub3">
+        <xsl:attribute name="epub:type">note</xsl:attribute>
+      </xsl:if>
+      <xsl:choose>
+        <xsl:when test="$text='' and count(*)=1 and tei:p">
+          <xsl:call-template name="noteback"/>
+          <xsl:apply-templates select="*/node()"/>
+        </xsl:when>
+        <xsl:when test="$text='' and *[1][self::tei:p]">
+          <p class="noindent">
+            <xsl:call-template name="noteback"/>
+            <xsl:apply-templates select="*[1]/node()"/>
+          </p>
+            <xsl:apply-templates select="*[position() &gt; 1]"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:call-template name="noteback"/>
+          <xsl:apply-templates/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:element>
+      <!-- TOTEST
+      <xsl:choose>
+        <xsl:when test="@ana">
+          <xsl:text> </xsl:text>
+          <i>
+            <xsl:value-of select="@ana"/>
+          </i>
+          <xsl:text>. </xsl:text>
+        </xsl:when>
+      </xsl:choose>
+      -->
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del or .//tei:note[@type = 'apparatus']]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
     <label for="dl-ed-{$p}">Édition</label>
