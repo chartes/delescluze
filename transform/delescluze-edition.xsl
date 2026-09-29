@@ -125,6 +125,16 @@
     <span class="choice"><span class="reg"><xsl:apply-templates select="tei:reg/node()"/></span><span class="orig"><xsl:apply-templates select="tei:orig/node()"/></span></span>
   </xsl:template>
 
+  <!-- 2026-09-29 : vers restitués depuis l'ÉLEC (span.l, 8 pages de carnet). Un groupe de vers
+       cité dans un paragraphe (carnet1-page007, -052) reste dans son <p> : la générique en ferait
+       des <div>, que le navigateur sortirait du <p> ; ici des <span> mis en bloc par la CSS. -->
+  <xsl:template match="tei:p//tei:lg" priority="20">
+    <span class="lg"><xsl:apply-templates/></span>
+  </xsl:template>
+  <xsl:template match="tei:p//tei:l" priority="20">
+    <span class="l"><xsl:apply-templates/></span>
+  </xsl:template>
+
   <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
