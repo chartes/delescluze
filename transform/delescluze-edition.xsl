@@ -196,6 +196,11 @@
     <div class="facsimile">
       <xsl:if test="@xml:id"><xsl:attribute name="id"><xsl:value-of select="@xml:id"/></xsl:attribute></xsl:if>
       <xsl:apply-templates select="tei:graphic"/>
+      <!-- 2026-09-29 : page sans image (lettre14-page01) : mention et cote de l'ÉLEC (section#facsimile). -->
+      <xsl:if test="not(tei:graphic)">
+        <p class="facsimile-absent"><xsl:apply-templates select="tei:p/node()"/></p>
+        <p class="facsimile-desc"><xsl:value-of select="normalize-space(tei:figDesc)"/></p>
+      </xsl:if>
       <!-- D14d (autopilote 2026-09-12) : l'ancien site affichait la cote sous l'image
            (<figcaption>) ; DoTS ne la mettait que dans l'attribut alt. -->
       <xsl:if test="normalize-space((tei:graphic/tei:desc | tei:desc)[1]) != ''">
