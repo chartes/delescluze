@@ -145,6 +145,28 @@
     <p class="floatingTextTitle"><xsl:apply-templates/></p>
   </xsl:template>
 
+  <!-- 2026-09-29 : post-scriptum et adresses des lettres (div.postscript, div.address de l'ÉLEC),
+       perdus ou fondus dans le texte à la rétro-conversion. L'ÉLEC les faisait précéder d'un libellé
+       entre parenthèses (span.postscriptLabel, span.addressLabel) ; il est rendu ici de la même façon.
+       Un post-scriptum qui continue la page précédente (lettre10-page04) n'en avait pas. -->
+  <xsl:template match="tei:div[@type = 'postscript']" priority="20">
+    <div class="postscript"><xsl:apply-templates/></div>
+  </xsl:template>
+  <xsl:template match="tei:div[@type = 'postscript']/tei:p[1][not(node()[1][self::tei:pb])]" priority="20">
+    <p class="p"><span class="postscriptLabel">(P.S. : ) </span><xsl:apply-templates/></p>
+  </xsl:template>
+  <xsl:template match="tei:div[@type = 'address']" priority="20">
+    <div class="address">
+      <span class="addressLabel">
+        <xsl:choose>
+          <xsl:when test="@rend = 'perpendicular'">(Adresse perpendiculaire à la feuille : )</xsl:when>
+          <xsl:otherwise>(Adresse : )</xsl:otherwise>
+        </xsl:choose>
+      </span>
+      <xsl:apply-templates/>
+    </div>
+  </xsl:template>
+
   <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
