@@ -145,6 +145,12 @@
     <p class="floatingTextTitle"><xsl:apply-templates/></p>
   </xsl:template>
 
+  <!-- 2026-09-29 : lacune illisible dans une rature (span.editorialComment-gapInDel de l'ÉLEC,
+       42 occurrences) ; l'ÉLEC écrivait « (illisible) ». La générique sortait « [...] ». -->
+  <xsl:template match="tei:gap[@reason = 'illegible']" priority="20">
+    <span class="gapInDel">(illisible)</span>
+  </xsl:template>
+
   <!-- 2026-09-29 : post-scriptum et adresses des lettres (div.postscript, div.address de l'ÉLEC),
        perdus ou fondus dans le texte à la rétro-conversion. L'ÉLEC les faisait précéder d'un libellé
        entre parenthèses (span.postscriptLabel, span.addressLabel) ; il est rendu ici de la même façon.
