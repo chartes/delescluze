@@ -418,6 +418,11 @@
        autre <listBibl> du document est dans <text><back>, que la feuille ne rend pas (l. 32).
        Aucune autre page ne peut donc être touchée. -->
   <xsl:template match="tei:listBibl//tei:note" mode="fn"/>
+  <!-- 2026-09-29 : même cas pour les trois <bibl> de citation de « Mentions légales » (hors listBibl) :
+       leur note (« Édition numérique en ligne : … ») est rendue en place ET recopiée en bas de page,
+       avec un retour vers #note1_…#note3_, ancres qui n'existent pas (crawl n° 9). Mesuré : ce sont
+       les 3 seules notes de <bibl> hors listBibl du corps ; l'ÉLEC les donnait en ligne seulement. -->
+  <xsl:template match="tei:bibl//tei:note" mode="fn"/>
 
   <!-- 2026-09-14 : appel de référence bibliographique dans une note (« lien dans les notes qui
        marchent pas »). Le modèle générique « @ref | @target » (hteiml/xsl/tei2html.xsl l. 3309)
