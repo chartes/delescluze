@@ -145,6 +145,14 @@
     <p class="floatingTextTitle"><xsl:apply-templates/></p>
   </xsl:template>
 
+  <!-- 2026-09-29 : soulignements du manuscrit (em.underline de l'ÉLEC -> <hi rend="underline">,
+       rendu span.underline par la générique). Titres soulignés (span.title_underline) : l'ÉLEC les
+       mettait en italique dans l'édition et soulignés dans la transcription ; la CSS du corpus
+       fait de même d'après le bouton d'état. -->
+  <xsl:template match="tei:title[@rend = 'underline'][not(@ref)]" priority="20">
+    <cite class="title_underline"><xsl:apply-templates/></cite>
+  </xsl:template>
+
   <!-- 2026-09-29 : lacune illisible dans une rature (span.editorialComment-gapInDel de l'ÉLEC,
        42 occurrences) ; l'ÉLEC écrivait « (illisible) ». La générique sortait « [...] ». -->
   <xsl:template match="tei:gap[@reason = 'illegible']" priority="20">
