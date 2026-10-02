@@ -6,7 +6,10 @@
   xmlns:epub="http://www.idpf.org/2007/ops"
   exclude-result-prefixes="tei epub">
 
-  <xsl:import href="../hteiml/xsl/tei2html.xsl"/>
+  <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
+  <!-- 2026-10-02 : début des chemins absolus de l'application (liens, images). Le front dev est
+       monté sous /elec/ : le dépôt porte '/elec' ; la copie servie en local (dots-clean) '' et y importe ../hteiml/xsl/tei2html.xsl. -->
+  <xsl:variable name="elec-base" select="'/elec'"/>
   <xsl:output indent="no"/><!-- autopilote 2026-09-11 : sinon DoTS-vue colle les mots (condense) -->
 
   <!-- ================================================================
@@ -413,12 +416,12 @@
   </xsl:template>
 
   <xsl:template match="tei:ref[starts-with(@target, '#index-personnes-')]" priority="25">
-    <a href="/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
+    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
   <!-- 2026-09-12 (D20) : la liste des noms en tête d'une lettre vise désormais la notice-unité. -->
   <xsl:template match="tei:list[@type = 'personnes-index']//tei:ref[starts-with(@target, '#person')]" priority="30">
-    <a href="/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
+    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
   <!--
@@ -553,7 +556,7 @@
   </xsl:template>
 
   <xsl:template match="tei:ref[starts-with(@target, '#le-projet-')]" priority="25">
-    <a href="/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
+    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
   <xsl:template match="tei:person" priority="20">
@@ -603,7 +606,7 @@
            2026-09-25 : la lettre d'index se deduit du nom lui-meme — l'index est alphabetique,
            et les 139 notices le verifient. -->
       <xsl:variable name="letter"><xsl:call-template name="dl-lettre-index"/></xsl:variable>
-      <p><a class="back" href="/delescluze/document/delescluze-edition?refId={$letter}">Retour</a></p>
+      <p><a class="back" href="{$elec-base}/delescluze/document/delescluze-edition?refId={$letter}">Retour</a></p>
     </article>
   </xsl:template>
 
@@ -656,16 +659,16 @@
           <xsl:choose>
             <xsl:when test="starts-with(@url, 'http://') or starts-with(@url, 'https://')"><xsl:value-of select="@url"/></xsl:when>
             <xsl:when test="starts-with(@url, '/delescluze/img/')">
-              <xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
               <xsl:value-of select="substring-after(@url, '/delescluze/img/')"/>
             </xsl:when>
-            <xsl:when test="starts-with(@url, './img/')"><xsl:text>/images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
+            <xsl:when test="starts-with(@url, './img/')"><xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
             <xsl:when test="starts-with(@url, 'img/')">
-              <xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
               <xsl:value-of select="substring-after(@url, 'img/')"/>
             </xsl:when>
             <xsl:otherwise>
-              <xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
               <xsl:value-of select="@url"/>
             </xsl:otherwise>
           </xsl:choose>
@@ -710,11 +713,11 @@
        Table et bloc produits par dots-autopilot/scripts/d5_legacy_links_fix.py. -->
   <!-- adresse ELEC de cette edition -->
   <xsl:template match="tei:idno[not(@type = 'URI' and ../tei:title)][normalize-space(.) = 'http://elec.enc.sorbonne.fr/delescluze/']" priority="14">
-    <a class="idno d5-local" href="/delescluze"><xsl:apply-templates/></a>
+    <a class="idno d5-local" href="{$elec-base}/delescluze"><xsl:apply-templates/></a>
   </xsl:template>
   <!-- renvoi du sourceDesc -->
   <xsl:template match="tei:ref[@target = 'http://elec.enc.sorbonne.fr/delescluze/']" priority="14">
-    <a class="ref d5-local" href="/delescluze"><xsl:apply-templates/></a>
+    <a class="ref d5-local" href="{$elec-base}/delescluze"><xsl:apply-templates/></a>
   </xsl:template>
   <!-- D5-FIN -->
 
@@ -831,7 +834,7 @@
           </strong>
         </xsl:when>
         <xsl:otherwise>
-          <a class="dl-mois-lien" href="/delescluze/document/delescluze-edition?refId={$ancetre}#{$page}">
+          <a class="dl-mois-lien" href="{$elec-base}/delescluze/document/delescluze-edition?refId={$ancetre}#{$page}">
             <xsl:value-of select="$libelle"/>
           </a>
         </xsl:otherwise>
