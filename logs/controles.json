@@ -1,0 +1,37 @@
+{
+  "xmlBienForme": true,
+  "xmlErreur": "",
+  "pagesMoissonnees": 297,
+  "pagesConverties": 297,
+  "pagesParRubrique": {
+    "introduction": 15,
+    "ephemerides": 119,
+    "passages-rediges": 96,
+    "lettres": 41,
+    "paratextes": 6,
+    "index-personnes": 19,
+    "sources-et-bibliographie": 1
+  },
+  "pagesAvecFacsimileEtPb": 256,
+  "pbEmisDansTEI": 256,
+  "notes": 434,
+  "renvoisIndexPersonneOccurrences": 901,
+  "renvoisIndexPersonneCiblesUniques": 137,
+  "renvoisBiblOccurrences": 39,
+  "personnesIndex": 139,
+  "pagesIndexPersonnes": 19,
+  "entreesBibliographie": 185,
+  "casAlignementJournalises": 199,
+  "detailAlignement": {
+    "repli-paragraphe-entier": 133,
+    "nombre-different-enfants-jour": 5,
+    "nombre-different-lignes-table": 2,
+    "edition-absente": 51,
+    "nombre-different": 4,
+    "transcription-absente": 4
+  },
+  "ciblesCasseesPersonnes": 0,
+  "ciblesCasseesBibl": 0,
+  "pbInlineContinuation": 184,
+  "pbPageLevel": 256
+}

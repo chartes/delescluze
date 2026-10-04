@@ -1,0 +1,16 @@
+20 pages moissonnées (file d'attente : 140)
+40 pages moissonnées (file d'attente : 184)
+60 pages moissonnées (file d'attente : 185)
+80 pages moissonnées (file d'attente : 172)
+100 pages moissonnées (file d'attente : 158)
+120 pages moissonnées (file d'attente : 145)
+140 pages moissonnées (file d'attente : 126)
+160 pages moissonnées (file d'attente : 114)
+180 pages moissonnées (file d'attente : 99)
+200 pages moissonnées (file d'attente : 82)
+220 pages moissonnées (file d'attente : 64)
+240 pages moissonnées (file d'attente : 47)
+260 pages moissonnées (file d'attente : 31)
+280 pages moissonnées (file d'attente : 11)
+Terminé : 298 pages moissonnées, 3 échecs (voir logs/harvest-errors.log).
+24 images de contenu repérées (voir logs/images-manifest.tsv), rapatriement séparé via harvest-images.mjs.
