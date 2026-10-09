@@ -1,41 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xsl:transform version="1.1"
+<xsl:transform version="1.1" xmlns:ord="urn:ordinaux"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:tei="http://www.tei-c.org/ns/1.0"
   xmlns:epub="http://www.idpf.org/2007/ops"
-  exclude-result-prefixes="tei epub">
+  exclude-result-prefixes="tei epub ord">
 
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
+  <xsl:include href="garde.xsl"/><!-- 2026-10-08 : page de garde commune à tous les projets -->
+  <xsl:include href="ordinaux.xsl"/> <!-- chantier ordinaux 2026-10-08 -->
+  <xsl:include href="bibliographie.xsl"/> <!-- modele commun des pages Bibliographie 2026-10-08 -->
   <!-- 2026-10-02 : début des chemins absolus de l'application (liens, images). Le front dev est
        monté sous /elec/ : le dépôt porte '/elec' ; la copie servie en local (dots-clean) '' et y importe ../hteiml/xsl/tei2html.xsl. -->
   <xsl:variable name="elec-base" select="'/elec'"/>
   <xsl:output indent="no"/><!-- autopilote 2026-09-11 : sinon DoTS-vue colle les mots (condense) -->
-
-  <!-- ================================================================
-       Racine de la ressource : n'afficher que le PREMIER texte.
-
-       Sans `ref`, DoTS Vue demande le document entier
-       (`document?resource=delescluze-edition&amp;mediaType=html`) : la generique rend la page
-       de garde issue du teiHeader PUIS tout le corps (1,9 Mo de HTML), soit
-       l'edition complete empilee sous la page d'accueil.
-
-       Sur ELEC, /delescluze/ n'affiche que la page « accueil » (la premiere page de
-       la rubrique Paratextes) ; les carnets, passages et lettres passent par le
-       sommaire.
-
-       On neutralise donc, au seul rendu du document complet, tout ce qui suit
-       la premiere unite citable. Les fragments sont servis dans un
-       <dts:wrapper> SANS teiHeader ni <text> : les motifs ci-dessous, ancres
-       sur `tei:TEI[tei:teiHeader]/tei:text`, ne les atteignent pas.
-       Meme correctif que christofle.xsl et chroniqueslatines.xsl.
-       ================================================================ -->
-  <!-- Ne garder que la premiere rubrique, reduite a sa premiere page (accueil). -->
-  <xsl:template match="tei:TEI[tei:teiHeader]/tei:text/tei:body/tei:div[position() &gt; 1]" priority="15"/>
-  <xsl:template match="tei:TEI[tei:teiHeader]/tei:text/tei:body/tei:div[1]/tei:div[position() &gt; 1]" priority="15"/>
-  <xsl:template match="tei:TEI[tei:teiHeader]/tei:text/tei:back" priority="15"/>
-
-
 
   <xsl:template match="*[local-name() = 'wrapper']" priority="20">
     <xsl:apply-templates/>
@@ -59,32 +37,19 @@
   <!-- 2026-09-25 : chaque notice etant une unite citable, la cible est l'identifiant de la
        personne lui-meme ; la lettre d'index ne servait plus de repli que pour un identifiant
        vide. Le compagnon delescluze-persons.xml disparait donc d'ici. -->
+  <!-- 2026-10-07 : les lettres et les notices ne sont plus des unités citables (refsDecl) :
+       toutes les fiches sont dans la page « Index des personnes » ; le lien ouvre la fiche
+       (Document.vue pose .dots-target, la CSS la déplie et la surligne). -->
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
-    <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
-    <xsl:choose>
-      <xsl:when test="$pid != ''"><xsl:value-of select="$pid"/></xsl:when>
-      <xsl:otherwise>index-personnes</xsl:otherwise>
-    </xsl:choose>
+    <xsl:value-of select="$elec-base"/>
+    <xsl:text>/delescluze/document/delescluze-edition?refId=index-personnes</xsl:text>
+    <xsl:if test="$pid != ''"><xsl:text>#</xsl:text><xsl:value-of select="$pid"/></xsl:if>
   </xsl:template>
 
   <!-- Libelles courts appeles par le mode="a" de la generique.
        Sans ces templates, le fallback imprime <facsimile mode="a">,
        <correspDesc mode="a">, etc. en rouge dans l'interface. -->
-  <xsl:template match="tei:figure[@type = 'facsimile']" mode="a" priority="20">
-    <xsl:choose>
-      <xsl:when test=".//tei:ptr[@target]">
-        <a class="facsimile" href="{(.//tei:ptr)[1]/@target}" target="_blank" rel="noopener">
-          <xsl:value-of select="normalize-space((tei:graphic/tei:desc | tei:desc)[1])"/>
-        </a>
-      </xsl:when>
-      <xsl:otherwise>
-        <span class="facsimile">
-          <xsl:value-of select="normalize-space((tei:graphic/tei:desc | tei:desc | .)[1])"/>
-        </span>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:template>
 
   <!-- B6 (autopilote 2026-09-11) : états « Édition » / « Transcription » de l'ancien site, sans script.
        Ancien site : deux sections par page, #edition (formes régularisées, suppressions absentes) et
@@ -292,19 +257,6 @@
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="tei:ab[@type = 'correspDesc']" mode="a" priority="20">
-    <span class="correspDesc">
-      <xsl:value-of select="normalize-space(tei:seg[@type='sent'])"/>
-      <xsl:if test="tei:seg[@type='received']">
-        <xsl:text> à </xsl:text>
-        <xsl:value-of select="normalize-space(tei:seg[@type='received'])"/>
-      </xsl:if>
-      <xsl:if test="tei:date">
-        <xsl:text>, </xsl:text>
-        <xsl:value-of select="normalize-space(tei:date[1])"/>
-      </xsl:if>
-    </span>
-  </xsl:template>
 
   <xsl:template match="tei:ab[@type = 'correspDesc']" priority="20">
     <p class="correspDesc">
@@ -320,17 +272,8 @@
     </p>
   </xsl:template>
 
-  <xsl:template match="tei:ab[@type = 'correspDesc']/tei:seg" mode="a" priority="20">
-    <span class="correspAction"><xsl:apply-templates/></span>
-  </xsl:template>
 
-  <xsl:template match="tei:ab[@type = 'correspDesc']/tei:seg" priority="20">
-    <span class="correspAction"><xsl:apply-templates/></span>
-  </xsl:template>
 
-  <xsl:template match="tei:opener" mode="a" priority="20">
-    <span class="opener"><xsl:apply-templates/></span>
-  </xsl:template>
 
   <xsl:template match="tei:opener" priority="20">
     <div class="opener"><xsl:apply-templates/></div>
@@ -345,46 +288,12 @@
        l'application. La liste de l'ancien site (`tei:list[@type='lettres-index']`) n'est donc plus
        rendue du tout. Les versions précédentes sont dans
        delescluze-edition.xsl.bak_lettres_20260912 et .bak_sanslettres_20260912. -->
-  <xsl:template match="tei:list[@type = 'lettres-index']" priority="20"/>
 
-  <xsl:template match="tei:list[@type = 'lettres-index']/tei:item" priority="20">
-    <xsl:apply-templates/>
-    <xsl:text> </xsl:text>
-  </xsl:template>
 
-  <!-- 2026-09-12 (D18) : les notices de personnes ont reçu leurs variantes de nom et leurs
-       identifiants d'autorité, relevés sur le site publié (34 et 37). Il faut donc les rendre,
-       sinon la donnée est là sans être visible. Le libellé et la forme du lien reprennent ceux
-       du site : « Autre(s) notice(s) relatives à la même personne : BnF : <url> ». L'URL est
-       construite ICI, à partir du seul identifiant conservé dans le TEI. -->
-  <xsl:template match="tei:note[@type = 'localNames']" priority="25">
-    <p class="dl-noms-locaux"><xsl:apply-templates/></p>
-  </xsl:template>
 
-  <xsl:template match="tei:idno[@type = 'BnF']" priority="25">
-    <xsl:variable name="url" select="concat('http://catalogue.bnf.fr/', normalize-space(.), '/PUBLIC')"/>
-    <p class="dl-autorite">
-      <span class="dl-autorite-libelle">Autre(s) notice(s) relatives à la même personne : BnF : </span>
-      <a class="dl-autorite-lien" href="{$url}" target="_blank" rel="noopener"><xsl:value-of select="$url"/></a>
-    </p>
-  </xsl:template>
 
-  <xsl:template match="tei:list[@type = 'personnes-index']" priority="20">
-    <ul class="personnes-index"><xsl:apply-templates/></ul>
-  </xsl:template>
-
-  <xsl:template match="tei:list[@type = 'sommaire']//tei:item | tei:list[@type = 'personnes-index']//tei:item" priority="20">
-    <li><xsl:apply-templates/></li>
-  </xsl:template>
-
-  <xsl:template match="tei:ref[starts-with(@target, '#index-personnes-')]" priority="25">
-    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
-  </xsl:template>
 
   <!-- 2026-09-12 (D20) : la liste des noms en tête d'une lettre vise désormais la notice-unité. -->
-  <xsl:template match="tei:list[@type = 'personnes-index']//tei:ref[starts-with(@target, '#person')]" priority="30">
-    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
-  </xsl:template>
 
   <!--
     Rubrique « Index des personnes » demandée seule : DoTS-vue la reçoit sans ses lettres
@@ -397,30 +306,10 @@
   -->
   <!-- En mode excludeFragments, DoTS n'envoie même pas le <div> :
        <dts:wrapper><head>Index des personnes</head></dts:wrapper>. -->
-  <xsl:template match="tei:head[parent::*[local-name() = 'wrapper']][not(preceding-sibling::* or following-sibling::*)][normalize-space() = 'Index des personnes']" priority="30">
-    <section class="div rubrique level1" id="index-personnes">
-      <h1 class="head rubrique"><xsl:apply-templates/></h1>
-    </section>
-  </xsl:template>
 
-  <xsl:template match="tei:div[@xml:id = 'index-personnes'][not(tei:div)]" priority="30">
-    <section class="div rubrique level1" id="index-personnes">
-      <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
-    </section>
-  </xsl:template>
 
   <!-- 2026-09-11 (D3) : lien absolu vers la lettre d'index de la personne (un href « #id » seul
        ramène DoTS-vue à l'accueil ; la rubrique index-personnes seule ne contient pas les notices). -->
-  <xsl:template match="tei:ref[starts-with(@target, '#person')]" priority="25">
-    <a>
-      <xsl:attribute name="href">
-        <xsl:call-template name="person-href">
-          <xsl:with-param name="pid" select="substring-after(@target, '#')"/>
-        </xsl:call-template>
-      </xsl:attribute>
-      <xsl:apply-templates/>
-    </a>
-  </xsl:template>
 
   <!-- 2026-09-14 : quatre notices ont un @xml:id accentué (brabançon1-3, préveraud). Une ancre
        non-ASCII survit à l'ouverture à froid de l'URL, mais PAS à un clic dans l'application :
@@ -431,19 +320,6 @@
        notices sont rendues par la générique (`tei:listBibl/tei:bibl`, tei2html.xsl l. 2000). -->
   <xsl:variable name="accents-from">àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ</xsl:variable>
   <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
-
-  <!-- Les variables sont interdites dans un motif de correspondance en XSLT 1.0 : la table est
-       donc réécrite en clair ici. -->
-  <xsl:template match="tei:listBibl/tei:bibl[@xml:id]
-                       [translate(@xml:id, 'àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ', 'aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY') != string(@xml:id)]"
-                priority="25">
-    <li>
-      <xsl:call-template name="atts"/>
-      <a class="bibl-ascii-anchor"
-         id="bibl-{translate(@xml:id, $accents-from, $accents-to)}">&#x200c;</a>
-      <xsl:apply-templates/>
-    </li>
-  </xsl:template>
 
   <!-- 2026-09-14 (agent DEL3) : « Version en ligne : http://… » ne doit PAS repartir en bas de la
        page de bibliographie. La rétro-conversion a encodé ces mentions en <note type="reference">
@@ -460,7 +336,6 @@
        le <cite>) ; il n'existe aucune note[@type='reference'] ailleurs dans le corps, et le seul
        autre <listBibl> du document est dans <text><back>, que la feuille ne rend pas (l. 32).
        Aucune autre page ne peut donc être touchée. -->
-  <xsl:template match="tei:listBibl//tei:note" mode="fn"/>
   <!-- 2026-09-29 : même cas pour les trois <bibl> de citation de « Mentions légales » (hors listBibl) :
        leur note (« Édition numérique en ligne : … ») est rendue en place ET recopiée en bas de page,
        avec un retour vers #note1_…#note3_, ancres qui n'existent pas (crawl n° 9). Mesuré : ce sont
@@ -521,60 +396,177 @@
     <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
-  <xsl:template match="tei:person" priority="20">
-    <article class="person" id="{@xml:id}">
-      <h2><xsl:apply-templates select="tei:persName[1]/node()"/></h2>
-      <xsl:apply-templates select="node()[not(self::tei:persName[1])][not(self::tei:listRef[@type = 'linksToEdition'])]"/>
-      <!-- 2026-09-11 (D3b) : « Personne citée dans », comme la section linksToEdition de l'ancien site.
-           2026-09-25 : les occurrences sont portees par le TEI (un <listRef type="linksToEdition">
-           par unite d'edition : un <ref type="groupe"> qui la nomme, puis un <ref> par unite citable
-           ou le nom figure). Aucun fragment DTS ne voit le reste du document : la liste ne peut pas
-           etre recalculee ici, elle appartient a l'index lui-meme. @corresp porte l'unite a ouvrir
-           quand la cible est sous le niveau editable de DoTS-vue ; sans lui, la cible s'ouvre seule. -->
-      <xsl:variable name="cited" select="tei:listRef[@type = 'linksToEdition']"/>
-      <xsl:if test="$cited">
-        <section class="linksToEdition">
-          <p class="linksToEdition-head">Personne citée dans :</p>
-          <ul>
-            <xsl:for-each select="$cited">
-              <li>
-                <xsl:value-of select="tei:ref[@type = 'groupe'][1]"/>
-                <xsl:text> : </xsl:text>
-                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
-                  <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-                  <a>
-                    <xsl:attribute name="href">
-                      <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
-                      <xsl:choose>
-                        <xsl:when test="@corresp">
-                          <xsl:value-of select="substring-after(@corresp, '#')"/>
-                          <xsl:text>#</xsl:text>
-                          <xsl:value-of select="substring-after(@target, '#')"/>
-                        </xsl:when>
-                        <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
-                      </xsl:choose>
-                    </xsl:attribute>
-                    <xsl:value-of select="."/>
-                  </a>
-                </xsl:for-each>
-              </li>
-            </xsl:for-each>
-          </ul>
-        </section>
-      </xsl:if>
-      <!-- autopilote 2026-09-11 (B6) : « #top » n'existe pas dans le fragment ; retour en tête de la lettre d'index
-           (section index-personnes-X, barre A–Z), comme le « Top » de l'ancien site. -->
-      <!-- 2026-09-11 (D3) : dans le fragment servi, la div de la lettre n'est pas ancêtre (href="#").
-           2026-09-25 : la lettre d'index se deduit du nom lui-meme — l'index est alphabetique,
-           et les 139 notices le verifient. -->
-      <xsl:variable name="letter"><xsl:call-template name="dl-lettre-index"/></xsl:variable>
-      <p><a class="back" href="{$elec-base}/delescluze/document/delescluze-edition?refId={$letter}">Retour</a></p>
-    </article>
+
+  <!-- ================================================================
+       2026-10-07 : index des personnes en fiches repliables, sur le modèle de la page
+       « Références citées » des Chroniques latines (chroniqueslatines.xsl, cl-oeuvre).
+       - Page « Index des personnes » : une ligne repliable par lettre (« A (7) »), qui
+         déplie ses noms ; chaque nom déplie sa fiche.
+       - Page d'une lettre (index-personnes-T) : les noms de la lettre, repliables.
+       Replié : le nom (avec ses dates), la fonction, le nombre de mentions. Déplié : la
+       biographie, les formes du nom, les mentions par carnet (titre du passage à côté), par
+       lettre, dans l'introduction, puis « Voir aussi » et les autorités.
+       2026-10-07 : lettres et notices ne sont plus des unités citables (refsDecl) : la page
+       « Index des personnes » arrive avec tout son contenu, sans compagnon.
+       ================================================================ -->
+
+  <!-- lien vers une unité de l'édition (même forme que « Personne citée dans ») -->
+  <xsl:template name="dl-href">
+    <xsl:value-of select="$elec-base"/>
+    <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
+    <xsl:choose>
+      <xsl:when test="@corresp">
+        <xsl:value-of select="substring-after(@corresp, '#')"/>
+        <xsl:text>#</xsl:text>
+        <xsl:value-of select="substring-after(@target, '#')"/>
+      </xsl:when>
+      <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
-  <xsl:template match="tei:person/tei:note" priority="20">
-    <p class="{@type}"><xsl:apply-templates/></p>
+  <!-- une fiche -->
+  <xsl:template name="dl-fiche">
+    <xsl:variable name="mentions" select="tei:listRef[@type = 'linksToEdition'][not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]/tei:ref[not(@type = 'groupe')]"/>
+    <xsl:variable name="nom" select="normalize-space(tei:persName[1])"/>
+    <details class="dl-fiche" id="{@xml:id}">
+      <summary onclick="var d=this.parentNode;d.classList.remove('dots-target');">
+        <span class="dl-fiche-nom">
+          <span class="dl-fiche-vedette"><xsl:value-of select="replace($nom, '\s*\([^)]*\)\s*$', '')"/></span>
+          <xsl:if test="matches($nom, '\([^)]*\)\s*$')">
+            <xsl:text> </xsl:text>
+            <span class="dl-fiche-dates"><xsl:value-of select="replace($nom, '^.*(\([^)]*\))\s*$', '$1')"/></span>
+          </xsl:if>
+          <xsl:if test="normalize-space(tei:occupation[1]) != ''">
+            <span class="dl-fiche-fonction"><xsl:value-of select="normalize-space(tei:occupation[1])"/></span>
+          </xsl:if>
+        </span>
+        <span class="dl-fiche-nb">
+          <xsl:value-of select="count($mentions)"/>
+          <xsl:value-of select="if (count($mentions) = 1) then ' mention' else ' mentions'"/>
+        </span>
+      </summary>
+      <div class="dl-fiche-corps">
+        <xsl:for-each select="tei:note[@type = 'biography']">
+          <p class="dl-fiche-bio"><xsl:apply-templates/></p>
+        </xsl:for-each>
+        <xsl:for-each select="tei:note[@type = 'localNames']">
+          <p class="dl-fiche-formes"><span class="dl-etiquette">Formes du nom : </span><xsl:apply-templates/></p>
+        </xsl:for-each>
+        <xsl:variable name="listes" select="tei:listRef[@type = 'linksToEdition']"/>
+        <xsl:if test="$listes">
+          <dl class="dl-fiche-mentions">
+            <!-- carnets, avec les titres des passages qui reprennent leurs pages -->
+            <xsl:for-each select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet')]">
+              <xsl:variable name="carnet" select="normalize-space(tei:ref[@type = 'groupe'][1])"/>
+              <dt><xsl:value-of select="$carnet"/></dt>
+              <dd>
+                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
+                  <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
+                  <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
+                    <xsl:value-of select="replace(normalize-space(.), '^page ', 'p.&#160;')"/></a>
+                </xsl:for-each>
+                <xsl:variable name="passages" select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage')]
+                    [some $r in tei:ref[not(@type = 'groupe')] satisfies starts-with(normalize-space($r), concat($carnet, ','))]"/>
+                <xsl:for-each select="$passages">
+                  <span class="dl-passage">
+                    <xsl:text> — </xsl:text>
+                    <a><xsl:attribute name="href"><xsl:for-each select="tei:ref[@type = 'groupe'][1]"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
+                      <xsl:value-of select="normalize-space(tei:ref[@type = 'groupe'][1])"/></a>
+                  </span>
+                </xsl:for-each>
+              </dd>
+            </xsl:for-each>
+            <!-- lettres et introduction -->
+            <xsl:for-each select="$listes[not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet') or starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]">
+              <xsl:variable name="g" select="tei:ref[@type = 'groupe'][1]"/>
+              <dt>
+                <xsl:choose>
+                  <xsl:when test="starts-with($g/@target, '#lettre')">Lettre</xsl:when>
+                  <xsl:otherwise><xsl:value-of select="normalize-space($g)"/></xsl:otherwise>
+                </xsl:choose>
+              </dt>
+              <dd>
+                <xsl:if test="starts-with($g/@target, '#lettre')">
+                  <a><xsl:attribute name="href"><xsl:for-each select="$g"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
+                    <xsl:value-of select="normalize-space($g)"/></a>
+                  <xsl:text> : </xsl:text>
+                </xsl:if>
+                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
+                  <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
+                  <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
+                    <xsl:value-of select="replace(normalize-space(.), '^[Pp]age ', 'p.&#160;')"/></a>
+                </xsl:for-each>
+              </dd>
+            </xsl:for-each>
+          </dl>
+        </xsl:if>
+        <xsl:apply-templates select="tei:note[@type = 'seeAlso']"/>
+        <xsl:variable name="autorites" select="tei:idno[@type = ('BNF', 'ISNI', 'IDREF', 'url')][normalize-space(@corresp) or starts-with(normalize-space(.), 'http')]"/>
+        <xsl:if test="$autorites">
+          <p class="dl-fiche-autorites">
+            <span class="dl-etiquette">Autorités : </span>
+            <xsl:for-each select="$autorites">
+              <xsl:if test="position() gt 1"><span class="dl-sep"> · </span></xsl:if>
+              <a href="{if (normalize-space(@corresp)) then normalize-space(@corresp) else normalize-space(.)}" target="_blank" rel="noopener">
+                <xsl:value-of select="if (@type = 'BNF') then 'BnF' else if (@type = 'IDREF') then 'IdRef' else if (@type = 'url') then 'Lien' else @type"/>
+              </a>
+            </xsl:for-each>
+          </p>
+        </xsl:if>
+      </div>
+    </details>
   </xsl:template>
+
+  <!-- page d'une lettre : les fiches de la lettre ; la barre A–Z et la liste des noms (en tête
+       du fragment) s'effacent devant elles -->
+
+  <xsl:template match="*[local-name() = 'wrapper'][tei:div[@type = 'index-lettre']] | tei:div[@xml:id = 'index-personnes'][tei:div[@type = 'index-lettre']]" priority="50">
+    <section class="div rubrique level1" id="index-personnes">
+      <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
+      <xsl:call-template name="dl-index-complet"/>
+    </section>
+  </xsl:template>
+
+  <!-- page « Index des personnes » : les lettres repliables, lues dans le TEI entier -->
+  <xsl:template name="dl-index-complet">
+    <xsl:param name="lettres" select="tei:div[@type = 'index-lettre']"/>
+    <div class="dl-index dl-index-complet">
+      <xsl:for-each select="$lettres">
+        <details class="dl-lettre" id="{@xml:id}">
+          <summary>
+            <h2 class="dl-lettre-titre">
+              <xsl:value-of select="substring-after(@xml:id, 'index-personnes-')"/>
+              <span class="dl-lettre-nb"><xsl:value-of select="concat(' (', count(.//tei:person), ')')"/></span>
+            </h2>
+          </summary>
+          <xsl:for-each select=".//tei:person"><xsl:call-template name="dl-fiche"/></xsl:for-each>
+        </details>
+      </xsl:for-each>
+    </div>
+  </xsl:template>
+
+
+  <!-- ================================================================
+       2026-10-07 : page « Sources et bibliographie », mise en forme comme les bibliographies des
+       autres corpus (Chroniques latines) : titre de page, rubriques en intertitres, notices en
+       retrait suspendu, nom d'auteur en petites capitales.
+       - Les sources : les fonds d'archives, regroupés par dépôt (le dépôt est nommé par
+         l'identifiant de la notice : nationalArchives01, departementArchivesMorbihan03…), cote en
+         gras ; puis les sources imprimées. Regroupement d'affichage seulement.
+       - L'auteur : la générique ne gardait que ses éléments (« Amat Roman » pour
+         « Amat (Roman d') ») ; on rend tout son contenu.
+       - La phrase de service « reprises … depuis l'apparat bibliographique encodé » est retirée.
+       ================================================================ -->
+  <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
+    <xsl:call-template name="biblio-page">
+      <xsl:with-param name="div" select="."/>
+      <xsl:with-param name="depots" select="('nationalArchives', 'nationalLibraryFrance', 'institutFrance', 'municipalLibraryLille', 'departementArchivesMorbihan', 'departementArchivesRhone', 'rgaspiMoscou')"/>
+      <xsl:with-param name="noms" select="('Archives nationales', 'Bibliothèque nationale de France', 'Bibliothèque de l’Institut de France', 'Bibliothèque municipale de Lille', 'Archives départementales du Morbihan', 'Archives départementales du Rhône', 'Archives d’État russes d’histoire sociale et politique (RGASPI), Moscou')"/>
+    </xsl:call-template>
+  </xsl:template>
+  <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
+
+
 
   <!-- 2026-09-11 (D3) : « Voir aussi » cliquable, comme la section crossReferences de l'ancien site
        (libellés identiques au texte TEI, cibles relevées sur l'ancien site).
@@ -609,9 +601,6 @@
     </xsl:choose>
   </xsl:template>
 
-  <xsl:template match="tei:person/tei:occupation" priority="20">
-    <p class="occupation"><xsl:apply-templates/></p>
-  </xsl:template>
 
   <xsl:template match="tei:graphic" priority="20"><!-- autopilote 2026-09-11 (B6) : src relatif à l'application, sans hôte en dur -->
     <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
@@ -640,33 +629,6 @@
   </xsl:template>
 
 
-  <!--
-    Apparat de notes a la racine.
-
-    La generique appelle `footnotes` avec `cont` = le <text> entier : neutraliser
-    les divisions ne suffit donc pas, les notes de toute l'edition restaient
-    empilees sous le premier texte (les 587 notes de l'edition). On reprend le corps du template
-    generique `tei:text` en restreignant `cont` a la page d'accueil.
-  -->
-  <xsl:template match="tei:TEI[tei:teiHeader]/tei:text" priority="15">
-    <xsl:param name="level" select="count(ancestor::tei:group)"/>
-    <article>
-      <xsl:attribute name="id">
-        <xsl:call-template name="id"/>
-      </xsl:attribute>
-      <xsl:call-template name="atts"/>
-      <xsl:apply-templates select="*">
-        <xsl:with-param name="level" select="$level +1"/>
-      </xsl:apply-templates>
-      <xsl:variable name="notes-cont" select="tei:body/tei:div[1]/tei:div[1]"/>
-      <xsl:for-each select="/">
-        <xsl:call-template name="footnotes">
-          <xsl:with-param name="cont" select="$notes-cont"/>
-        </xsl:call-template>
-      </xsl:for-each>
-    </article>
-  </xsl:template>
-
   <!-- D5-DEBUT (autopilote 2026-09-12) : liens vers les anciens sites ELEC -->
   <!-- hteiml fait un lien de tout tei:idno commencant par « http » (tei2html.xsl l. 1805),
        du tei:title voisin d'un idno[@type='URI'] (l. 1796) et de tei:ref/@target (l. 1456).
@@ -674,13 +636,7 @@
        l'identifiant de la publication d'origine), seule la cible devient la route locale.
        Table et bloc produits par dots-autopilot/scripts/d5_legacy_links_fix.py. -->
   <!-- adresse ELEC de cette edition -->
-  <xsl:template match="tei:idno[not(@type = 'URI' and ../tei:title)][normalize-space(.) = 'http://elec.enc.sorbonne.fr/delescluze/']" priority="14">
-    <a class="idno d5-local" href="{$elec-base}/delescluze"><xsl:apply-templates/></a>
-  </xsl:template>
   <!-- renvoi du sourceDesc -->
-  <xsl:template match="tei:ref[@target = 'http://elec.enc.sorbonne.fr/delescluze/']" priority="14">
-    <a class="ref d5-local" href="{$elec-base}/delescluze"><xsl:apply-templates/></a>
-  </xsl:template>
   <!-- D5-FIN -->
 
   <!-- 2026-09-25 : mise en conformite du TEI contre tei_all (1 780 erreurs, dont
@@ -703,10 +659,8 @@
        texte brut (hteiml/xsl/common.xsl l. 940), ce qui aplatirait le <choice> et les <hi>
        des titres de journee. Le <date> y est donc transparent lui aussi. -->
   <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
-  <xsl:template match="tei:div[@type = 'index-lettre']/tei:listPerson" priority="20"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
-  <xsl:template match="tei:idno/@corresp"><xsl:call-template name="ref"/></xsl:template>
 
   <!-- ================================================================
        Releve des 17 mois des ephemerides et mise en forme des dates.
@@ -805,7 +759,7 @@
   <xsl:template name="dl-jour">
     <xsl:param name="d"/>
     <xsl:choose>
-      <xsl:when test="substring($d, 9, 2) = '01'">1er</xsl:when>
+      <xsl:when test="substring($d, 9, 2) = '01'"><xsl:sequence select="ord:html('1er')"/></xsl:when>
       <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -829,13 +783,24 @@
     </xsl:choose>
   </xsl:template>
 
-  <!-- Lettre d'index d'une notice : premiere lettre du nom, sans accent, en capitale.
-       Le fragment d'une notice ne contient pas la division de sa lettre ; le nom, lui, y est. -->
-  <xsl:template name="dl-lettre-index">
-    <xsl:text>index-personnes-</xsl:text>
-    <xsl:value-of select="translate(
-      substring(translate(normalize-space(tei:persName[1]), $accents-from, $accents-to), 1, 1),
-      'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
+  <!-- 2026-10-09 : tableaux de comptes sans en-tête (surcharge propre à Delescluze, décision de Maxime).
+       Les 268 tableaux sans <row role="label"> ne comportent aucune ligne d'intitulés de colonnes : on ne
+       fabrique donc PAS de <th scope="col">. Seules deux choses sont promues :
+       - la ligne-titre qui couvre tout le tableau (« Du 30 janvier », « 2 février, Lundi ») : <th colspan="2" scope="colgroup" > ;
+       - les lignes de solde (Total, Reste, Avoir, Report, Restant, avec ou sans crochets) : libellé en <th scope="row">.
+       Les montants restent en <td>. Les tableaux qui ont un label (8) ne sont pas touchés. -->
+  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row[count(tei:cell) = 1]/tei:cell[@cols = 2]"
+                priority="30">
+    <th colspan="2" scope="colgroup">
+      <xsl:apply-templates/>
+    </th>
+  </xsl:template>
+
+  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row/tei:cell[1][following-sibling::tei:cell][starts-with(normalize-space(.), 'Total') or starts-with(normalize-space(.), '[Total]') or starts-with(normalize-space(.), 'Reste') or starts-with(normalize-space(.), '[Reste]') or starts-with(normalize-space(.), 'Restant') or starts-with(normalize-space(.), 'Avoir') or starts-with(normalize-space(.), '[Avoir]') or starts-with(normalize-space(.), 'Report')]"
+                priority="30">
+    <th scope="row">
+      <xsl:apply-templates/>
+    </th>
   </xsl:template>
 
 </xsl:transform>
