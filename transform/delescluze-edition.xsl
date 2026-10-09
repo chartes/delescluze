@@ -48,8 +48,6 @@
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="tei:person/tei:note" mode="fn"/>
-
 
   <!-- 2026-09-12 (D20) : chaque notice est devenue une UNITÉ citable (niveau « personne » du
        refsDecl, 139 unités), pour que les personnes figurent dans la table des matières. Un renvoi
@@ -68,37 +66,6 @@
       <xsl:when test="$pid != ''"><xsl:value-of select="$pid"/></xsl:when>
       <xsl:otherwise>index-personnes</xsl:otherwise>
     </xsl:choose>
-  </xsl:template>
-
-  <!-- 2026-09-14 (agent DEL3) : le retour de note pointait sur LUI-MEME.
-       Cette surcharge recopie le `noteback` de la generique (hteiml/xsl/tei2html.xsl,
-       template "noteback") mais avait perdu le `_` final de la cible : elle sortait
-       <a class="noteback" href="#X"> A L'INTERIEUR de <aside id="X">, si bien que
-       cliquer « 1. » ne ramenait pas a l'appel de note mais ne bougeait pas.
-       La generique ancre l'APPEL sur `id="{$id}_"` (template "noteref", meme fichier)
-       et le retour doit donc viser `#{$id}_`. Mesure avant correction : 1352 retours
-       de note sur 175 unites citables servies, 1352 pointant sur eux-memes (aucun
-       correct) — script scan_noteback.py, comptage sur les 498 unites de la
-       navigation. Un `@target` explicite continue de primer, comme dans la generique. -->
-  <xsl:template name="noteback">
-    <xsl:param name="class">noteback</xsl:param>
-    <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
-    <a class="{$class}">
-      <xsl:attribute name="href">
-        <xsl:choose>
-          <xsl:when test="@target"><xsl:value-of select="substring-before(concat(@target, ' '), ' ')"/></xsl:when>
-          <xsl:otherwise>
-            <xsl:text>#</xsl:text>
-            <xsl:value-of select="$id"/>
-            <xsl:text>_</xsl:text>
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:attribute>
-      <xsl:call-template name="note-n"/>
-      <xsl:if test="$class = 'noteback'">
-        <xsl:text>. </xsl:text>
-      </xsl:if>
-    </a>
   </xsl:template>
 
   <!-- Libelles courts appeles par le mode="a" de la generique.
@@ -194,7 +161,6 @@
       <span class="apparatusNote"><xsl:value-of select="@n"/>. <xsl:apply-templates/></span>
     </span>
   </xsl:template>
-  <xsl:template match="tei:note[@type = 'apparatus']" mode="fn"/>
   <!-- La liste de bas de page (modèle "footnotes" de la générique) appelle le modèle nommé "note"
        pour chaque note de la page (clé note-pb) : il est recopié ici de hteiml/xsl/tei2html.xsl
        (l. 2538-2593, inchangé) sous une seule condition, pour en écarter les notes d'apparat. -->
@@ -368,10 +334,6 @@
 
   <xsl:template match="tei:opener" priority="20">
     <div class="opener"><xsl:apply-templates/></div>
-  </xsl:template>
-
-  <xsl:template match="tei:list[@type = 'sommaire']" priority="20">
-    <ul class="sommaire"><xsl:apply-templates/></ul>
   </xsl:template>
 
   <!-- 2026-09-12, 20:30 (utilisateur, après avoir vu la colonne en place) : « en vrai enlève
@@ -721,46 +683,6 @@
   </xsl:template>
   <!-- D5-FIN -->
 
-  <!-- D14d (autopilote 2026-09-12) : texte nu dans un div. hteiml (tei2html.xsl l. 367)
-       termine son modele de div par <xsl:apply-templates select="*"/> : il ne traite QUE les
-       elements, donc tout noeud de texte place directement dans un div est perdu. Quatre pages
-       du TEI servi sont ecrites ainsi (introduction-partie-4-3, -4-4, -4-5 et credits ;
-       26 406 caracteres pour la seule partie 4-4) : DoTS n'affichait que leur titre, alors que
-       l'ancien site montrait tout le texte. On refait ici le modele pour ce seul cas, en
-       traitant tous les noeuds ; le reste du modele de hteiml ne concerne que les sorties
-       epub2/epub3, inutilisees ici. -->
-  <xsl:template match="tei:div[text()[normalize-space() != ''] or tei:ab[@type = 'tableau']]" priority="12">
-    <xsl:param name="level" select="count(ancestor::*) - 2"/>
-    <section>
-      <xsl:call-template name="atts">
-        <xsl:with-param name="class">level<xsl:value-of select="$level + 1"/></xsl:with-param>
-      </xsl:call-template>
-      <xsl:apply-templates>
-        <xsl:with-param name="level" select="$level + 1"/>
-      </xsl:apply-templates>
-    </section>
-  </xsl:template>
-
-  <!-- 2026-09-14 — DU TEXTE DISPARAISSAIT DANS LES NOMS.
-       La feuille commune `hteiml/xsl/teiHeader2html.xsl` l. 463 déclare
-       `<xsl:template match="*[tei:surname]">` : un modèle écrit pour le teiHeader, mais SANS
-       mode, donc actif aussi dans le corps du texte, où il l'emporte sur le modèle de nom de
-       `tei2html.xsl`. Il boucle sur `select="*"` : il ne garde que les ÉLÉMENTS enfants et
-       jette tous les nœuds de texte propres à l'élément.
-       Mesuré sur ce corpus le 2026-09-14 (`scripts/d38_persname_texte_perdu.py`) :
-       **351 éléments, 702 mots perdus** — ici surtout les parenthèses de la vedette,
-       « Nougaret (Christine) » sortant « Nougaret Christine ».
-       Décision de l'utilisateur : corriger **corpus par corpus** plutôt que dans la feuille
-       commune, que 23 corpus importent et dont deux copies servent. Même surcharge que celle
-       posée le même jour dans testaments-poilus.
-       Priorité 8 : elle reste sous le modèle de renvoi d'index (priorité 25) de cette feuille,
-       qui continue donc de faire les liens vers les notices de personnes. -->
-  <xsl:template priority="8"
-      match="tei:persName[tei:surname] | tei:name[tei:surname]
-           | tei:placeName[tei:surname] | tei:orgName[tei:surname]">
-    <span class="{local-name()}"><xsl:apply-templates/></span>
-  </xsl:template>
-
   <!-- 2026-09-25 : mise en conformite du TEI contre tei_all (1 780 erreurs, dont
        510 facsimile/ptr hors contexte). Les remplacements ci-dessous rendent EXACTEMENT
        le meme HTML qu'avant le remodelage ; voir le releve de la seance.
@@ -776,7 +698,6 @@
          lui aussi transparent.
        - <idno> n'a pas de @target : l'URL est passee en @corresp, rendue comme @target
          l'etait (modele nomme "ref" de la generique). -->
-  <xsl:template match="tei:ab[@type = 'viewer']" priority="20"/>
   <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
   <!-- mode="title" (sommaire du document entier) : la generique y remplace une date par son
        texte brut (hteiml/xsl/common.xsl l. 940), ce qui aplatirait le <choice> et les <hi>
