@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xsl:transform version="1.1" xmlns:ord="urn:ordinaux"
+<xsl:transform version="1.1"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:tei="http://www.tei-c.org/ns/1.0"
   xmlns:epub="http://www.idpf.org/2007/ops"
-  exclude-result-prefixes="tei epub ord">
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  exclude-result-prefixes="tei epub xs">
 
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
-  <xsl:include href="garde.xsl"/><!-- 2026-10-08 : page de garde commune à tous les projets -->
-  <xsl:include href="ordinaux.xsl"/> <!-- chantier ordinaux 2026-10-08 -->
-  <xsl:include href="bibliographie.xsl"/> <!-- modele commun des pages Bibliographie 2026-10-08 -->
-  <!-- 2026-10-02 : début des chemins absolus de l'application (liens, images). Le front dev est
-       monté sous /elec/ : le dépôt porte '/elec' ; la copie servie en local (dots-clean) '' et y importe ../hteiml/xsl/tei2html.xsl. -->
-  <xsl:variable name="elec-base" select="'/elec'"/>
+  <!-- [delescluze] liens relatifs (?refId=... ; images ../../images/...), sans chemin /elec/ : les relatifs marchent dans dots-vue. -->
   <xsl:output indent="no"/><!-- autopilote 2026-09-11 : sinon DoTS-vue colle les mots (condense) -->
 
   <xsl:template match="*[local-name() = 'wrapper']" priority="20">
@@ -42,8 +38,7 @@
        (Document.vue pose .dots-target, la CSS la déplie et la surligne). -->
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
-    <xsl:value-of select="$elec-base"/>
-    <xsl:text>/delescluze/document/delescluze-edition?refId=index-personnes</xsl:text>
+    <xsl:text>?refId=index-personnes</xsl:text>
     <xsl:if test="$pid != ''"><xsl:text>#</xsl:text><xsl:value-of select="$pid"/></xsl:if>
   </xsl:template>
 
@@ -371,7 +366,7 @@
     <xsl:variable name="ascii" select="translate($bid, $accents-from, $accents-to)"/>
     <a class="bibl">
       <xsl:attribute name="href">
-        <xsl:text>/delescluze/document/delescluze-edition?refId=sources-et-bibliographie#</xsl:text>
+        <xsl:text>?refId=sources-et-bibliographie#</xsl:text>
         <xsl:choose>
           <xsl:when test="$ascii != $bid"><xsl:text>bibl-</xsl:text><xsl:value-of select="$ascii"/></xsl:when>
           <xsl:otherwise><xsl:value-of select="$bid"/></xsl:otherwise>
@@ -393,7 +388,7 @@
   </xsl:template>
 
   <xsl:template match="tei:ref[starts-with(@target, '#le-projet-')]" priority="25">
-    <a href="{$elec-base}/delescluze/document/delescluze-edition?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
+    <a href="?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
 
@@ -412,8 +407,7 @@
 
   <!-- lien vers une unité de l'édition (même forme que « Personne citée dans ») -->
   <xsl:template name="dl-href">
-    <xsl:value-of select="$elec-base"/>
-    <xsl:text>/delescluze/document/delescluze-edition?refId=</xsl:text>
+    <xsl:text>?refId=</xsl:text>
     <xsl:choose>
       <xsl:when test="@corresp">
         <xsl:value-of select="substring-after(@corresp, '#')"/>
@@ -566,6 +560,174 @@
   </xsl:template>
   <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
 
+  <!-- 2026-10-12 : modèles de la page « Sources et bibliographie », repris ici du module
+       commun bibliographie.xsl (retiré : plus de XSL commune). Texte inchangé. -->
+  <!-- ==================================================================
+       Page : titre, puis un groupe par listBibl
+       ================================================================== -->
+  <xsl:template name="biblio-page">
+    <xsl:param name="div" as="element()" select="."/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+    <section class="biblio">
+      <h1 class="biblio-titre"><xsl:apply-templates select="$div/tei:head[1]/node()"/></h1>
+      <xsl:call-template name="biblio-contenu">
+        <xsl:with-param name="noeuds" select="$div/node() except $div/tei:head[1]"/>
+        <xsl:with-param name="depots" select="$depots"/>
+        <xsl:with-param name="noms" select="$noms"/>
+        <xsl:with-param name="lien-base" select="$lien-base"/>
+        <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+        <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+      </xsl:call-template>
+    </section>
+  </xsl:template>
+
+  <!-- 2026-10-08 : contenu d'une bibliographie, récursif : une sous-division (div) devient une rubrique
+       (son head en intertitre h2.biblio-rubrique), traitée de la même façon (cartulaires SAPC-AB : listBibl
+       rangées dans des div). Delescluze et chroniques (listBibl directes) : rendu inchangé. -->
+  <xsl:template name="biblio-contenu">
+    <xsl:param name="noeuds" as="node()*"/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+      <xsl:for-each select="$noeuds">
+        <xsl:choose>
+          <xsl:when test="self::tei:div">
+            <div class="biblio-groupe">
+              <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
+              <xsl:if test="tei:head"><h2 class="biblio-rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h2></xsl:if>
+              <xsl:call-template name="biblio-contenu">
+                <xsl:with-param name="noeuds" select="node() except tei:head[1]"/>
+                <xsl:with-param name="depots" select="$depots"/>
+                <xsl:with-param name="noms" select="$noms"/>
+                <xsl:with-param name="lien-base" select="$lien-base"/>
+                <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+                <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+              </xsl:call-template>
+            </div>
+          </xsl:when>
+          <xsl:when test="self::tei:listBibl">
+            <xsl:call-template name="biblio-groupe">
+              <xsl:with-param name="liste" select="."/>
+              <xsl:with-param name="depots" select="$depots"/>
+              <xsl:with-param name="noms" select="$noms"/>
+              <xsl:with-param name="lien-base" select="$lien-base"/>
+              <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+              <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+            </xsl:call-template>
+          </xsl:when>
+          <xsl:when test="self::comment() or self::processing-instruction() or (self::text() and normalize-space(.) = '')"/>
+          <xsl:otherwise>
+            <xsl:apply-templates select="."/>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:for-each>
+  </xsl:template>
+
+  <!-- ==================================================================
+       Un listBibl = une rubrique (intertitre) et ses notices
+       ================================================================== -->
+  <xsl:template name="biblio-groupe">
+    <xsl:param name="liste" as="element()"/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+    <!-- Fonds d'archives : identifiant de la notice = dépôt suivi d'un numéro -->
+    <xsl:variable name="fonds" select="$liste/tei:bibl[replace(@xml:id, '\d+$', '') = $depots]"/>
+    <div class="biblio-groupe">
+      <xsl:if test="$liste/tei:head">
+        <h2 class="biblio-rubrique"><xsl:apply-templates select="$liste/tei:head[1]/node()"/></h2>
+      </xsl:if>
+      <xsl:if test="$fonds">
+        <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-fonds"/></h3>
+        <xsl:for-each-group select="$fonds" group-by="replace(@xml:id, '\d+$', '')">
+          <div class="biblio-fonds">
+            <h4 class="biblio-depot"><xsl:value-of select="$noms[index-of($depots, current-grouping-key())[1]]"/></h4>
+            <xsl:for-each select="current-group()">
+              <xsl:call-template name="biblio-notice">
+                <xsl:with-param name="cote" select="true()"/>
+              </xsl:call-template>
+            </xsl:for-each>
+          </div>
+        </xsl:for-each-group>
+      </xsl:if>
+      <xsl:if test="$liste/tei:bibl except $fonds">
+        <xsl:if test="$fonds">
+          <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-imprimees"/></h3>
+        </xsl:if>
+        <xsl:for-each select="$liste/tei:bibl except $fonds">
+          <xsl:call-template name="biblio-notice">
+            <xsl:with-param name="lien-base" select="$lien-base"/>
+          </xsl:call-template>
+        </xsl:for-each>
+      </xsl:if>
+      <xsl:apply-templates select="$liste/*[not(self::tei:head or self::tei:bibl)]"/>
+    </div>
+  </xsl:template>
+
+  <!-- ==================================================================
+       Une notice (contexte : tei:bibl)
+       ================================================================== -->
+  <xsl:template name="biblio-notice">
+    <xsl:param name="cote" as="xs:boolean" select="false()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:variable name="t" select="normalize-space(.)"/>
+    <p class="biblio-notice">
+      <xsl:if test="@xml:id">
+        <xsl:attribute name="id" select="@xml:id"/>
+      </xsl:if>
+      <xsl:choose>
+        <!-- fonds : « cote : description » ; la cote part en gras -->
+        <xsl:when test="$cote and matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
+          <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
+          <xsl:text>&#160;: </xsl:text>
+          <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
+        </xsl:when>
+        <!-- notice liée à une entrée de la page de références (@corresp = #id) -->
+        <xsl:when test="@corresp and $lien-base != ''">
+          <a class="biblio-lien bibl" href="{concat($lien-base, @corresp)}">
+            <xsl:apply-templates select="node()" mode="biblio"/>
+          </a>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:apply-templates select="node()" mode="biblio"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </p>
+  </xsl:template>
+
+  <!-- ==================================================================
+       Contenu d'une notice (mode biblio). Le reste passe par les modèles ordinaires.
+       ================================================================== -->
+  <xsl:template match="tei:author | tei:editor" mode="biblio">
+    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:surname | tei:forename" mode="biblio">
+    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
+  </xsl:template>
+
+  <!-- Titre d'article : romain entre guillemets français -->
+  <xsl:template match="tei:title[@level = 'a']" mode="biblio">
+    <span class="biblio-titre-article">«&#160;<xsl:apply-templates select="node()" mode="biblio"/>&#160;»</span>
+  </xsl:template>
+
+  <!-- Ouvrage, revue, collection : italique -->
+  <xsl:template match="tei:title" mode="biblio">
+    <cite class="title"><xsl:apply-templates select="node()" mode="biblio"/></cite>
+  </xsl:template>
+
+  <xsl:template match="node()" mode="biblio" priority="-1">
+    <xsl:apply-templates select="."/>
+  </xsl:template>
+
 
 
   <!-- 2026-09-11 (D3) : « Voir aussi » cliquable, comme la section crossReferences de l'ancien site
@@ -610,16 +772,16 @@
           <xsl:choose>
             <xsl:when test="starts-with(@url, 'http://') or starts-with(@url, 'https://')"><xsl:value-of select="@url"/></xsl:when>
             <xsl:when test="starts-with(@url, '/delescluze/img/')">
-              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:text>../../images/delescluze/img/</xsl:text>
               <xsl:value-of select="substring-after(@url, '/delescluze/img/')"/>
             </xsl:when>
-            <xsl:when test="starts-with(@url, './img/')"><xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
+            <xsl:when test="starts-with(@url, './img/')"><xsl:text>../../images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
             <xsl:when test="starts-with(@url, 'img/')">
-              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:text>../../images/delescluze/img/</xsl:text>
               <xsl:value-of select="substring-after(@url, 'img/')"/>
             </xsl:when>
             <xsl:otherwise>
-              <xsl:value-of select="$elec-base"/><xsl:text>/images/delescluze/img/</xsl:text>
+              <xsl:text>../../images/delescluze/img/</xsl:text>
               <xsl:value-of select="@url"/>
             </xsl:otherwise>
           </xsl:choose>
@@ -709,7 +871,7 @@
           </strong>
         </xsl:when>
         <xsl:otherwise>
-          <a class="dl-mois-lien" href="{$elec-base}/delescluze/document/delescluze-edition?refId={$ancetre}#{$page}">
+          <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
             <xsl:value-of select="$libelle"/>
           </a>
         </xsl:otherwise>
@@ -759,7 +921,7 @@
   <xsl:template name="dl-jour">
     <xsl:param name="d"/>
     <xsl:choose>
-      <xsl:when test="substring($d, 9, 2) = '01'"><xsl:sequence select="ord:html('1er')"/></xsl:when>
+      <xsl:when test="substring($d, 9, 2) = '01'">1<sup>er</sup><!-- 2026-10-12 : ord:html() du module ordinaux retiré --></xsl:when>
       <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
