@@ -343,9 +343,14 @@
               <td class="dl-c-notice" data-sort="{normalize-space(string-join(tei:note[@type = 'biography'], ' '))}" data-f="{tf:plat(string-join(tei:note[@type = ('biography', 'seeAlso')], ' '))}" data-csv="{normalize-space(string-join(tei:note[@type = 'biography'], ' '))}">
                 <xsl:choose>
                   <xsl:when test="tei:note[@type = ('biography', 'seeAlso')] or $autorites">
-                    <xsl:for-each select="tei:note[@type = 'biography']">
-                      <p class="dl-fiche-bio"><xsl:apply-templates/></p>
-                    </xsl:for-each>
+                    <div class="dl-notice-texte">
+                      <xsl:for-each select="tei:note[@type = 'biography']">
+                        <p class="dl-fiche-bio"><xsl:apply-templates/></p>
+                      </xsl:for-each>
+                    </div>
+                    <xsl:if test="string-length(normalize-space(string-join(tei:note[@type = 'biography'], ' '))) gt 300">
+                      <details class="dl-suite"><summary><span class="dl-suite-plus">Lire la suite</span><span class="dl-suite-moins">Réduire</span></summary></details>
+                    </xsl:if>
                     <xsl:apply-templates select="tei:note[@type = 'seeAlso']"/>
                     <xsl:if test="$autorites">
                       <p class="dl-fiche-autorites">
@@ -364,6 +369,12 @@
               </td>
               <td class="dl-c-mentions" data-sort="{count($mentions)}" data-f="{tf:plat(string-join($sources, ' ; '))}" data-csv="{string-join(for $l in $listes return concat(normalize-space($l/tei:ref[@type = 'groupe'][1]), ' : ', string-join($l/tei:ref[not(@type = 'groupe')] ! normalize-space(.), ', ')), ' ; ')}">
                 <xsl:choose>
+                  <xsl:when test="count($listes/tei:ref[not(@type = 'groupe')]) gt 5">
+                    <details class="dl-mentions-replie">
+                      <summary><xsl:value-of select="concat(count($mentions), if (count($mentions) = 1) then ' mention' else ' mentions', ' · ', string-join($sources, ', '))"/></summary>
+                      <xsl:call-template name="dl-mentions"><xsl:with-param name="listes" select="$listes"/></xsl:call-template>
+                    </details>
+                  </xsl:when>
                   <xsl:when test="$listes"><xsl:call-template name="dl-mentions"><xsl:with-param name="listes" select="$listes"/></xsl:call-template></xsl:when>
                   <xsl:otherwise><span class="tf-vide">—</span></xsl:otherwise>
                 </xsl:choose>
