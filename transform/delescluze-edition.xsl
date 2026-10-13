@@ -6,94 +6,74 @@
   xmlns:epub="http://www.idpf.org/2007/ops"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
   exclude-result-prefixes="tei epub xs">
+  <!-- Delescluze : surcharge de hteiml, reconstruite le 13/10/2026 en partant du rendu
+       hteiml nu.
 
+       Une page de carnet, de passage ou de lettre reprend la mise en page du site ÉLEC
+       (elec.enc.sorbonne.fr/delescluze, theme/delescluze.css) : le fac-similé à gauche
+       (#facsimile), le texte à droite (#text), avec les deux états « Édition » et
+       « Transcription » de l'ancien site (bascule JavaScript displaySection), rendus ici
+       par deux boutons radio et la CSS : formes régularisées et ajouts de l'éditeur dans
+       l'édition, formes originales et suppressions barrées dans la transcription.
+
+       Repris tels quels de la feuille précédente (rien n'est retiré) : notes et apparat,
+       renvois à l'index des personnes et à la bibliographie, menu « Aller au mois »,
+       intervalle de dates de la page, index des personnes en fiches dépliables, page des
+       sources et de la bibliographie, adresses et post-scriptum des lettres, vers,
+       textes insérés, tableaux de comptes. -->
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
-  <!-- [delescluze] liens relatifs (?refId=... ; images ../../images/...), sans chemin /elec/ : les relatifs marchent dans dots-vue. -->
-  <xsl:output indent="no"/><!-- autopilote 2026-09-11 : sinon DoTS-vue colle les mots (condense) -->
-
+  <xsl:output indent="no"/>
   <xsl:template match="*[local-name() = 'wrapper']" priority="20">
     <xsl:apply-templates/>
-    <!-- 2026-09-11 (D3) : les notes des notices de l'index (biographie, « Voir aussi ») sont rendues
-         dans la notice, comme sur l'ancien site ; pas d'apparat de notes pour elles. -->
     <xsl:if test="not(tei:text) and .//tei:note[not(parent::tei:person)]">
       <xsl:call-template name="footnotes">
         <xsl:with-param name="cont" select="."/>
       </xsl:call-template>
     </xsl:if>
   </xsl:template>
-
-
-  <!-- 2026-09-12 (D20) : chaque notice est devenue une UNITÉ citable (niveau « personne » du
-       refsDecl, 139 unités), pour que les personnes figurent dans la table des matières. Un renvoi
-       vise donc maintenant la notice elle-même, et non plus une ancre dans la page de sa lettre :
-       depuis ce changement, DoTS-vue sert la page de lettre en mode `excludeFragments`, où les
-       notices détaillées ne sont plus là — une ancre y mènerait à une page qui ne montre que la
-       liste des noms. Le repli sur la lettre, puis sur la rubrique, reste pour un identifiant que
-       le side-car ne connaît pas. -->
-  <!-- 2026-09-25 : chaque notice etant une unite citable, la cible est l'identifiant de la
-       personne lui-meme ; la lettre d'index ne servait plus de repli que pour un identifiant
-       vide. Le compagnon delescluze-persons.xml disparait donc d'ici. -->
-  <!-- 2026-10-07 : les lettres et les notices ne sont plus des unités citables (refsDecl) :
-       toutes les fiches sont dans la page « Index des personnes » ; le lien ouvre la fiche
-       (Document.vue pose .dots-target, la CSS la déplie et la surligne). -->
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
     <xsl:text>?refId=index-personnes</xsl:text>
     <xsl:if test="$pid != ''"><xsl:text>#</xsl:text><xsl:value-of select="$pid"/></xsl:if>
   </xsl:template>
-
-  <!-- Libelles courts appeles par le mode="a" de la generique.
-       Sans ces templates, le fallback imprime <facsimile mode="a">,
-       <correspDesc mode="a">, etc. en rouge dans l'interface. -->
-
-  <!-- B6 (autopilote 2026-09-11) : états « Édition » / « Transcription » de l'ancien site, sans script.
-       Ancien site : deux sections par page, #edition (formes régularisées, suppressions absentes) et
-       #transcription (formes originales, 743 suppressions barrées), basculées en JavaScript.
-       La générique ne rendait qu'un flux mêlé (reg + orig en info-bulle + del barrés).
-       Ici : reg et orig sont émis tous deux ; deux boutons radio (premiers frères du contenu de la page,
-       juste avant le lien de page) pilotent l'affichage en CSS (:checked ~). -->
+  <!-- Page à fac-similé : deux colonnes, comme l'ÉLEC (section#facsimile, section#text ;
+       des classes ici, un carnet servi entier porte plusieurs pages). -->
+  <xsl:template match="tei:div[@type = 'page'][tei:figure[@type = 'facsimile']]" priority="20">
+    <section class="dl-page" id="{@xml:id}">
+      <section class="dl-facsimile">
+        <xsl:apply-templates select="tei:figure[@type = 'facsimile']"/>
+      </section>
+      <section class="dl-text">
+        <xsl:apply-templates select="node() except tei:figure[@type = 'facsimile']"/>
+      </section>
+    </section>
+  </xsl:template>
+  <!-- Ajout de l'éditeur (« février 1852 », « F ») : dans l'édition, sans marque ; absent de
+       la transcription (CSS). -->
+  <xsl:template match="tei:add" priority="20">
+    <span class="add"><xsl:apply-templates/></span>
+  </xsl:template>
   <xsl:template match="tei:choice[tei:orig][tei:reg]" priority="12">
     <span class="choice"><span class="reg"><xsl:apply-templates select="tei:reg/node()"/></span><span class="orig"><xsl:apply-templates select="tei:orig/node()"/></span></span>
   </xsl:template>
-
-  <!-- 2026-09-29 : vers restitués depuis l'ÉLEC (span.l, 8 pages de carnet). Un groupe de vers
-       cité dans un paragraphe (carnet1-page007, -052) reste dans son <p> : la générique en ferait
-       des <div>, que le navigateur sortirait du <p> ; ici des <span> mis en bloc par la CSS. -->
   <xsl:template match="tei:p//tei:lg" priority="20">
     <span class="lg"><xsl:apply-templates/></span>
   </xsl:template>
   <xsl:template match="tei:p//tei:l" priority="20">
     <span class="l"><xsl:apply-templates/></span>
   </xsl:template>
-
-  <!-- 2026-09-29 : textes insérés dans les carnets (div.floatingText de l'ÉLEC, 192 blocs), encodés
-       <floatingText type="inserted"><body>. La générique en fait un <aside> et un <h1> à signet ;
-       l'ÉLEC les rendait en bloc, le titre (h5.floatingTextTitle) en gras et en retrait. -->
   <xsl:template match="tei:floatingText" priority="20">
     <div class="floatingText"><xsl:apply-templates select="tei:body/node()"/></div>
   </xsl:template>
   <xsl:template match="tei:floatingText/tei:body/tei:head" priority="20">
     <p class="floatingTextTitle"><xsl:apply-templates/></p>
   </xsl:template>
-
-  <!-- 2026-09-29 : soulignements du manuscrit (em.underline de l'ÉLEC -> <hi rend="underline">,
-       rendu span.underline par la générique). Titres soulignés (span.title_underline) : l'ÉLEC les
-       mettait en italique dans l'édition et soulignés dans la transcription ; la CSS du corpus
-       fait de même d'après le bouton d'état. -->
   <xsl:template match="tei:title[@rend = 'underline'][not(@ref)]" priority="20">
     <cite class="title_underline"><xsl:apply-templates/></cite>
   </xsl:template>
-
-  <!-- 2026-09-29 : lacune illisible dans une rature (span.editorialComment-gapInDel de l'ÉLEC,
-       42 occurrences) ; l'ÉLEC écrivait « (illisible) ». La générique sortait « [...] ». -->
   <xsl:template match="tei:gap[@reason = 'illegible']" priority="20">
     <span class="gapInDel">(illisible)</span>
   </xsl:template>
-
-  <!-- 2026-09-29 : post-scriptum et adresses des lettres (div.postscript, div.address de l'ÉLEC),
-       perdus ou fondus dans le texte à la rétro-conversion. L'ÉLEC les faisait précéder d'un libellé
-       entre parenthèses (span.postscriptLabel, span.addressLabel) ; il est rendu ici de la même façon.
-       Un post-scriptum qui continue la page précédente (lettre10-page04) n'en avait pas. -->
   <xsl:template match="tei:div[@type = 'postscript']" priority="20">
     <div class="postscript"><xsl:apply-templates/></div>
   </xsl:template>
@@ -111,22 +91,14 @@
       <xsl:apply-templates/>
     </div>
   </xsl:template>
-
-  <!-- 2026-09-29 : notes d'apparat de la transcription (span.noteAnchor + span.apparatusNote de
-       l'ÉLEC, 431 restituées). Comme sur l'ÉLEC : appel « [a] » dans le texte, note affichée au
-       survol, dans l'état « Transcription » seulement (CSS du corpus) ; jamais en bas de page. -->
   <xsl:template match="tei:note[@type = 'apparatus']" priority="20">
     <span class="app" tabindex="0">
       <span class="noteAnchor">[<xsl:value-of select="@n"/>]</span>
       <span class="apparatusNote"><xsl:value-of select="@n"/>. <xsl:apply-templates/></span>
     </span>
   </xsl:template>
-  <!-- La liste de bas de page (modèle "footnotes" de la générique) appelle le modèle nommé "note"
-       pour chaque note de la page (clé note-pb) : il est recopié ici de hteiml/xsl/tei2html.xsl
-       (l. 2538-2593, inchangé) sous une seule condition, pour en écarter les notes d'apparat. -->
   <xsl:template name="note">
     <xsl:if test="not(@type = 'apparatus')">
-    <!-- identifiant de la note -->
     <xsl:variable name="id">
       <xsl:call-template name="id"/>
     </xsl:variable>
@@ -169,20 +141,8 @@
         </xsl:otherwise>
       </xsl:choose>
     </xsl:element>
-      <!-- TOTEST
-      <xsl:choose>
-        <xsl:when test="@ana">
-          <xsl:text> </xsl:text>
-          <i>
-            <xsl:value-of select="@ana"/>
-          </i>
-          <xsl:text>. </xsl:text>
-        </xsl:when>
-      </xsl:choose>
-      -->
     </xsl:if>
   </xsl:template>
-
   <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del or .//tei:note[@type = 'apparatus']]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
@@ -191,20 +151,15 @@
     <label for="dl-tr-{$p}">Transcription</label>
     <xsl:apply-imports/>
   </xsl:template>
-
   <xsl:template match="tei:figure[@type = 'facsimile']" priority="20">
-    <!-- autopilote 2026-09-11 (B6) : id du facsimile, cible des liens de page « {p. 001} » (a.pb.facs, href="#facs-…") -->
     <xsl:variable name="pid" select="../@xml:id"/>
     <div class="facsimile">
       <xsl:if test="@xml:id"><xsl:attribute name="id"><xsl:value-of select="@xml:id"/></xsl:attribute></xsl:if>
       <xsl:apply-templates select="tei:graphic"/>
-      <!-- 2026-09-29 : page sans image (lettre14-page01) : mention et cote de l'ÉLEC (section#facsimile). -->
       <xsl:if test="not(tei:graphic)">
         <p class="facsimile-absent"><xsl:apply-templates select="tei:p/node()"/></p>
         <p class="facsimile-desc"><xsl:value-of select="normalize-space(tei:figDesc)"/></p>
       </xsl:if>
-      <!-- D14d (autopilote 2026-09-12) : l'ancien site affichait la cote sous l'image
-           (<figcaption>) ; DoTS ne la mettait que dans l'attribut alt. -->
       <xsl:if test="normalize-space((tei:graphic/tei:desc | tei:desc)[1]) != ''">
         <p class="facsimile-desc">
           <xsl:value-of select="normalize-space((tei:graphic/tei:desc | tei:desc)[1])"/>
@@ -218,19 +173,6 @@
         </p>
       </xsl:if>
     </div>
-    <!-- D14d : menu « Aller au mois » des Ephemerides (nav#months-list de l'ancien site) et
-         intervalle de dates de la page (nav#pages-list). Les pages de carnet sont sous le
-         niveau editable de la collection : les liens prennent la forme
-         ?refId=<carnet>#<page> (cf. D8). -->
-    <!-- D14d (autopilote 2026-09-12), recalcule le 2026-09-25 : intervalle de dates de la page
-         (nav#pages-list de l'ancien site) et menu « Aller au mois » (nav#months-list).
-         Le compagnon delescluze-mois.xml est retire : l'intervalle et le mois courant se
-         deduisent des <date when> des journees de la page elle-meme, qui sont dans le fragment
-         servi. Le releve des 17 mois, lui, est un fait global de l'edition : aucune unite
-         citable ne le porte, il est donc inscrit ici (voir le modele « dl-mois-liste »).
-         Les pages de carnet sont celles dont l'identifiant commence par « carnet », comme
-         ailleurs dans cette feuille (#person, #le-projet-, #index-personnes-). Les pages des
-         lettres et des passages n'ont pas ce menu, elles ne l'avaient pas non plus sur l'ELEC. -->
     <xsl:if test="starts-with($pid, 'carnet')">
       <xsl:variable name="dates" select="../descendant::tei:div[@type = 'day']/tei:head/tei:date/@when"/>
       <div class="dl-page-nav">
@@ -251,8 +193,6 @@
       </div>
     </xsl:if>
   </xsl:template>
-
-
   <xsl:template match="tei:ab[@type = 'correspDesc']" priority="20">
     <p class="correspDesc">
       <xsl:value-of select="normalize-space(tei:seg[@type='sent'])"/>
@@ -266,93 +206,12 @@
       </xsl:if>
     </p>
   </xsl:template>
-
-
-
-
   <xsl:template match="tei:opener" priority="20">
     <div class="opener"><xsl:apply-templates/></div>
   </xsl:template>
-
-  <!-- 2026-09-12, 20:30 (utilisateur, après avoir vu la colonne en place) : « en vrai enlève
-       les lettre a b c d e c'est déjà dans la toc ». Vérifié avant de retirer : le sommaire de
-       DoTS-vue liste bien les 19 unités « Index des personnes : lettre A » … « lettre V », donc
-       toute liste de lettres rendue dans le texte en est un DOUBLON — qu'elle soit la barre
-       horizontale de l'ancien site, le menu déroulant, ou la colonne de gauche. Les trois ont
-       existé ici en une soirée ; il n'en reste aucune, la navigation entre lettres étant celle de
-       l'application. La liste de l'ancien site (`tei:list[@type='lettres-index']`) n'est donc plus
-       rendue du tout. Les versions précédentes sont dans
-       delescluze-edition.xsl.bak_lettres_20260912 et .bak_sanslettres_20260912. -->
-
-
-
-
-
-  <!-- 2026-09-12 (D20) : la liste des noms en tête d'une lettre vise désormais la notice-unité. -->
-
-  <!--
-    Rubrique « Index des personnes » demandée seule : DoTS-vue la reçoit sans ses lettres
-    (index-personnes-A…, passages DTS distincts), donc réduite à son titre. Elle a porté
-    successivement la barre horizontale de l'ancien site, puis un menu déroulant, puis la colonne
-    de gauche ; les trois sont retirées le 2026-09-12 à 20:30 — « en vrai enlève les lettre a b c
-    d e c'est déjà dans la toc ». Le sommaire de l'application liste les 19 lettres (vérifié), il
-    tient donc seul la navigation, et cette page ne garde que son titre, comme toute rubrique de
-    ce déploiement.
-  -->
-  <!-- En mode excludeFragments, DoTS n'envoie même pas le <div> :
-       <dts:wrapper><head>Index des personnes</head></dts:wrapper>. -->
-
-
-  <!-- 2026-09-11 (D3) : lien absolu vers la lettre d'index de la personne (un href « #id » seul
-       ramène DoTS-vue à l'accueil ; la rubrique index-personnes seule ne contient pas les notices). -->
-
-  <!-- 2026-09-14 : quatre notices ont un @xml:id accentué (brabançon1-3, préveraud). Une ancre
-       non-ASCII survit à l'ouverture à froid de l'URL, mais PAS à un clic dans l'application :
-       Document.vue passe le href par `new URL(...)` (l. 327), qui pourcent-encode le fragment,
-       puis `router.push` (l. 801) ré-encode le « % » — « #préveraud » arrive en
-       « #pr%25C3%25A9veraud » et `getElementById` ne trouve plus rien (mesuré au navigateur).
-       On ajoute donc à ces notices une ancre ASCII équivalente, que le side-car vise. Les autres
-       notices sont rendues par la générique (`tei:listBibl/tei:bibl`, tei2html.xsl l. 2000). -->
   <xsl:variable name="accents-from">àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ</xsl:variable>
   <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
-
-  <!-- 2026-09-14 (agent DEL3) : « Version en ligne : http://… » ne doit PAS repartir en bas de la
-       page de bibliographie. La rétro-conversion a encodé ces mentions en <note type="reference">
-       dans le <bibl> ; la générique rend une note À LA FOIS en place ET dans l'apparat, si bien que
-       « Sources et bibliographie » se terminait par 33 notes fantômes recopiant les 33 URL déjà
-       visibles dans leur notice — et leur retour de note ne pouvait viser aucun appel, puisque la
-       générique n'en émet pas pour elles (mesuré : 33 retours sans ancre, sur cette page seulement).
-       Sur l'ÉLEC, la mention est inline dans la notice — <span class="ref">Version en ligne : <a …>
-       — et la page ne porte AUCUN apparat de notes (pas de <article id="notes">, vérifié dans
-       data/legacy/sources-et-bibliographie.html). On retire donc la copie d'apparat, on garde la
-       mention en place. Même procédé que `tei:person/tei:note` plus haut (mode fn neutralisé).
-       Portée : les 33 notes sont toutes sous tei:listBibl (29 enfants directs de <bibl>, 4 dans le
-       <title> d'un <bibl> — « Autopacte. En ligne : … », que l'ÉLEC rendait lui aussi inline, dans
-       le <cite>) ; il n'existe aucune note[@type='reference'] ailleurs dans le corps, et le seul
-       autre <listBibl> du document est dans <text><back>, que la feuille ne rend pas (l. 32).
-       Aucune autre page ne peut donc être touchée. -->
-  <!-- 2026-09-29 : même cas pour les trois <bibl> de citation de « Mentions légales » (hors listBibl) :
-       leur note (« Édition numérique en ligne : … ») est rendue en place ET recopiée en bas de page,
-       avec un retour vers #note1_…#note3_, ancres qui n'existent pas (crawl n° 9). Mesuré : ce sont
-       les 3 seules notes de <bibl> hors listBibl du corps ; l'ÉLEC les donnait en ligne seulement. -->
   <xsl:template match="tei:bibl//tei:note" mode="fn"/>
-
-  <!-- 2026-09-14 : appel de référence bibliographique dans une note (« lien dans les notes qui
-       marchent pas »). Le modèle générique « @ref | @target » (hteiml/xsl/tei2html.xsl l. 3309)
-       résout « #x » par key('id','x') DANS LE FRAGMENT SERVI ; la <bibl> visée est dans une autre
-       unité (sources-et-bibliographie), la clé ne trouve rien, le xsl:for-each ne tourne pas et
-       le <a> sortait SANS @href du tout — 39 appels inertes. On vise donc l'unité qui sert la
-       notice, plus l'ancre, comme l'ancien site ÉLEC le faisait avec
-       « ../sources-et-bibliographie.html#nougaretParinetClavaud ».
-       La classe reste « bibl » : DoTS-vue ne garde que le PREMIER jeton de classe, et le CSS du
-       corpus s'appuie dessus (#main #article .bibl). -->
-  <!-- 2026-09-25 : l'ancre est CALCULEE, le compagnon delescluze-bibl.xml est retire.
-       Les 370 <bibl xml:id> du document sont soit dans « sources-et-bibliographie »,
-       soit dans le doublon de text/back/listBibl, qui n'appartient a aucune unite citable :
-       ses identifiants « -bis » visent donc la notice identique de la page de bibliographie,
-       comme le faisait l'ancien site ELEC. Les 38 renvois du corps visent tous une notice
-       existante (verifie), il n'y a donc plus de repli sans ancre. Les quatre identifiants
-       accentues prennent l'ancre ASCII posee par le modele « bibl-ascii-anchor » ci-dessus. -->
   <xsl:template match="tei:ref[@type = 'bibl'][starts-with(@target, '#')]" priority="25">
     <xsl:variable name="cible" select="substring-after(@target, '#')"/>
     <xsl:variable name="bid">
@@ -375,7 +234,6 @@
       <xsl:apply-templates/>
     </a>
   </xsl:template>
-
   <xsl:template match="tei:persName[starts-with(@ref, '#person')] | tei:name[starts-with(@ref, '#person')] | tei:rs[starts-with(@ref, '#person')]" priority="25">
     <a class="linkToIndex">
       <xsl:attribute name="href">
@@ -386,26 +244,9 @@
       <xsl:apply-templates/>
     </a>
   </xsl:template>
-
   <xsl:template match="tei:ref[starts-with(@target, '#le-projet-')]" priority="25">
     <a href="?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
-
-
-  <!-- ================================================================
-       2026-10-07 : index des personnes en fiches repliables, sur le modèle de la page
-       « Références citées » des Chroniques latines (chroniqueslatines.xsl, cl-oeuvre).
-       - Page « Index des personnes » : une ligne repliable par lettre (« A (7) »), qui
-         déplie ses noms ; chaque nom déplie sa fiche.
-       - Page d'une lettre (index-personnes-T) : les noms de la lettre, repliables.
-       Replié : le nom (avec ses dates), la fonction, le nombre de mentions. Déplié : la
-       biographie, les formes du nom, les mentions par carnet (titre du passage à côté), par
-       lettre, dans l'introduction, puis « Voir aussi » et les autorités.
-       2026-10-07 : lettres et notices ne sont plus des unités citables (refsDecl) : la page
-       « Index des personnes » arrive avec tout son contenu, sans compagnon.
-       ================================================================ -->
-
-  <!-- lien vers une unité de l'édition (même forme que « Personne citée dans ») -->
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
@@ -417,8 +258,6 @@
       <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-
-  <!-- une fiche -->
   <xsl:template name="dl-fiche">
     <xsl:variable name="mentions" select="tei:listRef[@type = 'linksToEdition'][not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]/tei:ref[not(@type = 'groupe')]"/>
     <xsl:variable name="nom" select="normalize-space(tei:persName[1])"/>
@@ -449,7 +288,6 @@
         <xsl:variable name="listes" select="tei:listRef[@type = 'linksToEdition']"/>
         <xsl:if test="$listes">
           <dl class="dl-fiche-mentions">
-            <!-- carnets, avec les titres des passages qui reprennent leurs pages -->
             <xsl:for-each select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet')]">
               <xsl:variable name="carnet" select="normalize-space(tei:ref[@type = 'groupe'][1])"/>
               <dt><xsl:value-of select="$carnet"/></dt>
@@ -470,7 +308,6 @@
                 </xsl:for-each>
               </dd>
             </xsl:for-each>
-            <!-- lettres et introduction -->
             <xsl:for-each select="$listes[not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet') or starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]">
               <xsl:variable name="g" select="tei:ref[@type = 'groupe'][1]"/>
               <dt>
@@ -510,18 +347,12 @@
       </div>
     </details>
   </xsl:template>
-
-  <!-- page d'une lettre : les fiches de la lettre ; la barre A–Z et la liste des noms (en tête
-       du fragment) s'effacent devant elles -->
-
   <xsl:template match="*[local-name() = 'wrapper'][tei:div[@type = 'index-lettre']] | tei:div[@xml:id = 'index-personnes'][tei:div[@type = 'index-lettre']]" priority="50">
     <section class="div rubrique level1" id="index-personnes">
       <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
       <xsl:call-template name="dl-index-complet"/>
     </section>
   </xsl:template>
-
-  <!-- page « Index des personnes » : les lettres repliables, lues dans le TEI entier -->
   <xsl:template name="dl-index-complet">
     <xsl:param name="lettres" select="tei:div[@type = 'index-lettre']"/>
     <div class="dl-index dl-index-complet">
@@ -538,19 +369,6 @@
       </xsl:for-each>
     </div>
   </xsl:template>
-
-
-  <!-- ================================================================
-       2026-10-07 : page « Sources et bibliographie », mise en forme comme les bibliographies des
-       autres corpus (Chroniques latines) : titre de page, rubriques en intertitres, notices en
-       retrait suspendu, nom d'auteur en petites capitales.
-       - Les sources : les fonds d'archives, regroupés par dépôt (le dépôt est nommé par
-         l'identifiant de la notice : nationalArchives01, departementArchivesMorbihan03…), cote en
-         gras ; puis les sources imprimées. Regroupement d'affichage seulement.
-       - L'auteur : la générique ne gardait que ses éléments (« Amat Roman » pour
-         « Amat (Roman d') ») ; on rend tout son contenu.
-       - La phrase de service « reprises … depuis l'apparat bibliographique encodé » est retirée.
-       ================================================================ -->
   <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
     <xsl:call-template name="biblio-page">
       <xsl:with-param name="div" select="."/>
@@ -559,12 +377,6 @@
     </xsl:call-template>
   </xsl:template>
   <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
-
-  <!-- 2026-10-12 : modèles de la page « Sources et bibliographie », repris ici du module
-       commun bibliographie.xsl (retiré : plus de XSL commune). Texte inchangé. -->
-  <!-- ==================================================================
-       Page : titre, puis un groupe par listBibl
-       ================================================================== -->
   <xsl:template name="biblio-page">
     <xsl:param name="div" as="element()" select="."/>
     <xsl:param name="depots" as="xs:string*" select="()"/>
@@ -584,10 +396,6 @@
       </xsl:call-template>
     </section>
   </xsl:template>
-
-  <!-- 2026-10-08 : contenu d'une bibliographie, récursif : une sous-division (div) devient une rubrique
-       (son head en intertitre h2.biblio-rubrique), traitée de la même façon (cartulaires SAPC-AB : listBibl
-       rangées dans des div). Delescluze et chroniques (listBibl directes) : rendu inchangé. -->
   <xsl:template name="biblio-contenu">
     <xsl:param name="noeuds" as="node()*"/>
     <xsl:param name="depots" as="xs:string*" select="()"/>
@@ -628,10 +436,6 @@
         </xsl:choose>
       </xsl:for-each>
   </xsl:template>
-
-  <!-- ==================================================================
-       Un listBibl = une rubrique (intertitre) et ses notices
-       ================================================================== -->
   <xsl:template name="biblio-groupe">
     <xsl:param name="liste" as="element()"/>
     <xsl:param name="depots" as="xs:string*" select="()"/>
@@ -639,7 +443,6 @@
     <xsl:param name="lien-base" as="xs:string" select="''"/>
     <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
     <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-    <!-- Fonds d'archives : identifiant de la notice = dépôt suivi d'un numéro -->
     <xsl:variable name="fonds" select="$liste/tei:bibl[replace(@xml:id, '\d+$', '') = $depots]"/>
     <div class="biblio-groupe">
       <xsl:if test="$liste/tei:head">
@@ -671,10 +474,6 @@
       <xsl:apply-templates select="$liste/*[not(self::tei:head or self::tei:bibl)]"/>
     </div>
   </xsl:template>
-
-  <!-- ==================================================================
-       Une notice (contexte : tei:bibl)
-       ================================================================== -->
   <xsl:template name="biblio-notice">
     <xsl:param name="cote" as="xs:boolean" select="false()"/>
     <xsl:param name="lien-base" as="xs:string" select="''"/>
@@ -684,13 +483,11 @@
         <xsl:attribute name="id" select="@xml:id"/>
       </xsl:if>
       <xsl:choose>
-        <!-- fonds : « cote : description » ; la cote part en gras -->
         <xsl:when test="$cote and matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
           <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
           <xsl:text>&#160;: </xsl:text>
           <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
         </xsl:when>
-        <!-- notice liée à une entrée de la page de références (@corresp = #id) -->
         <xsl:when test="@corresp and $lien-base != ''">
           <a class="biblio-lien bibl" href="{concat($lien-base, @corresp)}">
             <xsl:apply-templates select="node()" mode="biblio"/>
@@ -702,43 +499,22 @@
       </xsl:choose>
     </p>
   </xsl:template>
-
-  <!-- ==================================================================
-       Contenu d'une notice (mode biblio). Le reste passe par les modèles ordinaires.
-       ================================================================== -->
   <xsl:template match="tei:author | tei:editor" mode="biblio">
     <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
   </xsl:template>
-
   <xsl:template match="tei:surname | tei:forename" mode="biblio">
     <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
   </xsl:template>
-
-  <!-- Titre d'article : romain entre guillemets français -->
   <xsl:template match="tei:title[@level = 'a']" mode="biblio">
     <span class="biblio-titre-article">«&#160;<xsl:apply-templates select="node()" mode="biblio"/>&#160;»</span>
   </xsl:template>
-
-  <!-- Ouvrage, revue, collection : italique -->
   <xsl:template match="tei:title" mode="biblio">
     <cite class="title"><xsl:apply-templates select="node()" mode="biblio"/></cite>
   </xsl:template>
-
   <xsl:template match="node()" mode="biblio" priority="-1">
     <xsl:apply-templates select="."/>
   </xsl:template>
-
-
-
-  <!-- 2026-09-11 (D3) : « Voir aussi » cliquable, comme la section crossReferences de l'ancien site
-       (libellés identiques au texte TEI, cibles relevées sur l'ancien site).
-       2026-09-14 : le lien visait encore « page de la lettre + ancre » (?refId=index-personnes-X#personY),
-       forme d'avant D20. Or la page d'une lettre est servie en excludeFragments : mesuré, elle ne
-       contient aucun id person* — l'ancre ne pointait donc sur rien et le lecteur tombait sur la
-       simple liste des noms. Passage au modèle person-href (D20), qui vise l'unité de la personne. -->
   <xsl:template match="tei:person/tei:note[@type = 'seeAlso']" priority="25">
-    <!-- 2026-09-25 : les renvois « Voir aussi » sont des donnees editoriales relevees sur
-         l'ancien site ; ils sont desormais dans le TEI, en <ref> vers la notice visee. -->
     <xsl:variable name="see" select="tei:ref[starts-with(@target, '#person')]"/>
     <xsl:choose>
       <xsl:when test="$see">
@@ -762,9 +538,7 @@
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-
-
-  <xsl:template match="tei:graphic" priority="20"><!-- autopilote 2026-09-11 (B6) : src relatif à l'application, sans hôte en dur -->
+  <xsl:template match="tei:graphic" priority="20">
     <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
     <a id="{$id}" href="#{$id}">
       <img alt="{normalize-space(.)}">
@@ -789,53 +563,10 @@
       </img>
     </a>
   </xsl:template>
-
-
-  <!-- D5-DEBUT (autopilote 2026-09-12) : liens vers les anciens sites ELEC -->
-  <!-- hteiml fait un lien de tout tei:idno commencant par « http » (tei2html.xsl l. 1805),
-       du tei:title voisin d'un idno[@type='URI'] (l. 1796) et de tei:ref/@target (l. 1456).
-       Les anciens sites ELEC ferment : le TEXTE affiche est conserve mot pour mot (c'est
-       l'identifiant de la publication d'origine), seule la cible devient la route locale.
-       Table et bloc produits par dots-autopilot/scripts/d5_legacy_links_fix.py. -->
-  <!-- adresse ELEC de cette edition -->
-  <!-- renvoi du sourceDesc -->
-  <!-- D5-FIN -->
-
-  <!-- 2026-09-25 : mise en conformite du TEI contre tei_all (1 780 erreurs, dont
-       510 facsimile/ptr hors contexte). Les remplacements ci-dessous rendent EXACTEMENT
-       le meme HTML qu'avant le remodelage ; voir le releve de la seance.
-
-       - <facsimile> n'existe qu'entre <teiHeader> et <text> ; la, il serait hors du
-         fragment DTS servi (<dts:wrapper> sans teiHeader) et l'image disparaitrait.
-         Le bloc est donc devenu <figure type="facsimile">, admis dans la division de page,
-         et le <ptr> du visualiseur, interdit dans <figure>, est porte par un <ab type="viewer">.
-       - <head> n'admet pas @when : la date est portee par un <date> qui enveloppe le
-         contenu du titre ; il est rendu de maniere transparente.
-       - <person> n'existe que dans <listPerson> ; le conteneur est rendu transparent.
-       - <ref> n'admet pas author/pubPlace/publisher/biblScope : ils sont dans un <bibl>,
-         lui aussi transparent.
-       - <idno> n'a pas de @target : l'URL est passee en @corresp, rendue comme @target
-         l'etait (modele nomme "ref" de la generique). -->
   <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
-  <!-- mode="title" (sommaire du document entier) : la generique y remplace une date par son
-       texte brut (hteiml/xsl/common.xsl l. 940), ce qui aplatirait le <choice> et les <hi>
-       des titres de journee. Le <date> y est donc transparent lui aussi. -->
   <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
   <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
   <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
-
-  <!-- ================================================================
-       Releve des 17 mois des ephemerides et mise en forme des dates.
-
-       2026-09-25 : le depot ne doit contenir qu'un TEI et ses feuilles ; les trois
-       compagnons charges par document() n'y etaient pas versionnes, et la feuille
-       deployee seule cassait le corpus. Tout ce qui se deduit du fragment servi est
-       desormais calcule ici. Le tableau ci-dessous est la seule exception : la liste des
-       mois et la page ou chacun commence sont un fait de l'edition entiere, qu'aucun
-       fragment ne porte. Il est verifie contre les <date when> du TEI (17 mois, du
-       1851-11 au 1853-04) ; s'il fallait rouvrir les ephemerides, c'est ici qu'il faut
-       le reprendre.
-       ================================================================ -->
   <xsl:template name="dl-mois-liste">
     <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
     <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-01</xsl:with-param><xsl:with-param name="libelle">janvier 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
@@ -855,9 +586,6 @@
     <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-03</xsl:with-param><xsl:with-param name="libelle">mars 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page025</xsl:with-param></xsl:call-template>
     <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-04</xsl:with-param><xsl:with-param name="libelle">avril 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page030</xsl:with-param></xsl:call-template>
   </xsl:template>
-
-  <!-- Le mois ou l'on se trouve est rendu comme un ELEMENT distinct : DoTS-vue ne garde que
-       le premier jeton de classe des liens internes, et le mois courant n'a pas a etre un lien. -->
   <xsl:template name="dl-mois-item">
     <xsl:param name="id"/>
     <xsl:param name="libelle"/>
@@ -878,10 +606,6 @@
       </xsl:choose>
     </li>
   </xsl:template>
-
-  <!-- Intervalle de dates d'une page, dans la forme de l'ancien site :
-       « 26 avril 1852 », « 3-5 février 1852 », « 29 février-8 mars 1852 »,
-       « 24 décembre 1852-1er janvier 1853 ». Verifie sur les 119 pages de carnet. -->
   <xsl:template name="dl-intervalle">
     <xsl:param name="a"/>
     <xsl:param name="b"/>
@@ -908,7 +632,6 @@
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-
   <xsl:template name="dl-date">
     <xsl:param name="d"/>
     <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$d"/></xsl:call-template>
@@ -917,15 +640,13 @@
     <xsl:text> </xsl:text>
     <xsl:value-of select="substring($d, 1, 4)"/>
   </xsl:template>
-
   <xsl:template name="dl-jour">
     <xsl:param name="d"/>
     <xsl:choose>
-      <xsl:when test="substring($d, 9, 2) = '01'">1<sup>er</sup><!-- 2026-10-12 : ord:html() du module ordinaux retiré --></xsl:when>
+      <xsl:when test="substring($d, 9, 2) = '01'">1<sup>er</sup></xsl:when>
       <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-
   <xsl:template name="dl-nom-mois">
     <xsl:param name="d"/>
     <xsl:variable name="m" select="substring($d, 6, 2)"/>
@@ -944,25 +665,16 @@
       <xsl:otherwise>décembre</xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-
-  <!-- 2026-10-09 : tableaux de comptes sans en-tête (surcharge propre à Delescluze, décision de Maxime).
-       Les 268 tableaux sans <row role="label"> ne comportent aucune ligne d'intitulés de colonnes : on ne
-       fabrique donc PAS de <th scope="col">. Seules deux choses sont promues :
-       - la ligne-titre qui couvre tout le tableau (« Du 30 janvier », « 2 février, Lundi ») : <th colspan="2" scope="colgroup" > ;
-       - les lignes de solde (Total, Reste, Avoir, Report, Restant, avec ou sans crochets) : libellé en <th scope="row">.
-       Les montants restent en <td>. Les tableaux qui ont un label (8) ne sont pas touchés. -->
   <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row[count(tei:cell) = 1]/tei:cell[@cols = 2]"
                 priority="30">
     <th colspan="2" scope="colgroup">
       <xsl:apply-templates/>
     </th>
   </xsl:template>
-
   <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row/tei:cell[1][following-sibling::tei:cell][starts-with(normalize-space(.), 'Total') or starts-with(normalize-space(.), '[Total]') or starts-with(normalize-space(.), 'Reste') or starts-with(normalize-space(.), '[Reste]') or starts-with(normalize-space(.), 'Restant') or starts-with(normalize-space(.), 'Avoir') or starts-with(normalize-space(.), '[Avoir]') or starts-with(normalize-space(.), 'Report')]"
                 priority="30">
     <th scope="row">
       <xsl:apply-templates/>
     </th>
   </xsl:template>
-
 </xsl:transform>
