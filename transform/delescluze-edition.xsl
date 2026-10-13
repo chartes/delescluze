@@ -587,7 +587,8 @@
           <xsl:text>Voir aussi : </xsl:text>
           <xsl:for-each select="$see">
             <xsl:if test="position() &gt; 1"><xsl:text> ; </xsl:text></xsl:if>
-            <a>
+            <!-- tf-voir : la ligne visée du tableau est placée sous l'en-tête collant et surlignée -->
+            <a class="tf-voir">
               <xsl:attribute name="href">
                 <xsl:call-template name="person-href">
                   <xsl:with-param name="pid" select="substring-after(@target, '#')"/>
