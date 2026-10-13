@@ -5,7 +5,9 @@
   xmlns:tei="http://www.tei-c.org/ns/1.0"
   xmlns:epub="http://www.idpf.org/2007/ops"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
-  exclude-result-prefixes="tei epub xs">
+  xmlns:tf="urn:elec:tableau-filtrable"
+  xmlns:dl="urn:delescluze:xsl"
+  exclude-result-prefixes="tei epub xs tf dl">
   <!-- Delescluze : surcharge de hteiml, reconstruite le 13/10/2026 en partant du rendu
        hteiml nu.
 
@@ -22,6 +24,7 @@
        sources et de la bibliographie, adresses et post-scriptum des lettres, vers,
        textes insérés, tableaux de comptes. -->
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
+  <xsl:import href="tableau-filtrable.xsl"/>
   <xsl:output indent="no"/>
   <xsl:template match="*[local-name() = 'wrapper']" priority="20">
     <xsl:apply-templates/>
@@ -258,116 +261,167 @@
       <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-  <xsl:template name="dl-fiche">
-    <xsl:variable name="mentions" select="tei:listRef[@type = 'linksToEdition'][not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]/tei:ref[not(@type = 'groupe')]"/>
-    <xsl:variable name="nom" select="normalize-space(tei:persName[1])"/>
-    <details class="dl-fiche" id="{@xml:id}">
-      <summary onclick="var d=this.parentNode;d.classList.remove('dots-target');">
-        <span class="dl-fiche-nom">
-          <span class="dl-fiche-vedette"><xsl:value-of select="replace($nom, '\s*\([^)]*\)\s*$', '')"/></span>
-          <xsl:if test="matches($nom, '\([^)]*\)\s*$')">
-            <xsl:text> </xsl:text>
-            <span class="dl-fiche-dates"><xsl:value-of select="replace($nom, '^.*(\([^)]*\))\s*$', '$1')"/></span>
-          </xsl:if>
-          <xsl:if test="normalize-space(tei:occupation[1]) != ''">
-            <span class="dl-fiche-fonction"><xsl:value-of select="normalize-space(tei:occupation[1])"/></span>
-          </xsl:if>
-        </span>
-        <span class="dl-fiche-nb">
-          <xsl:value-of select="count($mentions)"/>
-          <xsl:value-of select="if (count($mentions) = 1) then ' mention' else ' mentions'"/>
-        </span>
-      </summary>
-      <div class="dl-fiche-corps">
-        <xsl:for-each select="tei:note[@type = 'biography']">
-          <p class="dl-fiche-bio"><xsl:apply-templates/></p>
-        </xsl:for-each>
-        <xsl:for-each select="tei:note[@type = 'localNames']">
-          <p class="dl-fiche-formes"><span class="dl-etiquette">Formes du nom : </span><xsl:apply-templates/></p>
-        </xsl:for-each>
-        <xsl:variable name="listes" select="tei:listRef[@type = 'linksToEdition']"/>
-        <xsl:if test="$listes">
-          <dl class="dl-fiche-mentions">
-            <xsl:for-each select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet')]">
-              <xsl:variable name="carnet" select="normalize-space(tei:ref[@type = 'groupe'][1])"/>
-              <dt><xsl:value-of select="$carnet"/></dt>
-              <dd>
-                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
-                  <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
-                  <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
-                    <xsl:value-of select="replace(normalize-space(.), '^page ', 'p.&#160;')"/></a>
-                </xsl:for-each>
-                <xsl:variable name="passages" select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage')]
-                    [some $r in tei:ref[not(@type = 'groupe')] satisfies starts-with(normalize-space($r), concat($carnet, ','))]"/>
-                <xsl:for-each select="$passages">
-                  <span class="dl-passage">
-                    <xsl:text> — </xsl:text>
-                    <a><xsl:attribute name="href"><xsl:for-each select="tei:ref[@type = 'groupe'][1]"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
-                      <xsl:value-of select="normalize-space(tei:ref[@type = 'groupe'][1])"/></a>
-                  </span>
-                </xsl:for-each>
-              </dd>
-            </xsl:for-each>
-            <xsl:for-each select="$listes[not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet') or starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]">
-              <xsl:variable name="g" select="tei:ref[@type = 'groupe'][1]"/>
-              <dt>
-                <xsl:choose>
-                  <xsl:when test="starts-with($g/@target, '#lettre')">Lettre</xsl:when>
-                  <xsl:otherwise><xsl:value-of select="normalize-space($g)"/></xsl:otherwise>
-                </xsl:choose>
-              </dt>
-              <dd>
-                <xsl:if test="starts-with($g/@target, '#lettre')">
-                  <a><xsl:attribute name="href"><xsl:for-each select="$g"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
-                    <xsl:value-of select="normalize-space($g)"/></a>
-                  <xsl:text> : </xsl:text>
-                </xsl:if>
-                <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
-                  <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
-                  <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
-                    <xsl:value-of select="replace(normalize-space(.), '^[Pp]age ', 'p.&#160;')"/></a>
-                </xsl:for-each>
-              </dd>
-            </xsl:for-each>
-          </dl>
-        </xsl:if>
-        <xsl:apply-templates select="tei:note[@type = 'seeAlso']"/>
-        <xsl:variable name="autorites" select="tei:idno[@type = ('BNF', 'ISNI', 'IDREF', 'url')][normalize-space(@corresp) or starts-with(normalize-space(.), 'http')]"/>
-        <xsl:if test="$autorites">
-          <p class="dl-fiche-autorites">
-            <span class="dl-etiquette">Autorités : </span>
-            <xsl:for-each select="$autorites">
-              <xsl:if test="position() gt 1"><span class="dl-sep"> · </span></xsl:if>
-              <a href="{if (normalize-space(@corresp)) then normalize-space(@corresp) else normalize-space(.)}" target="_blank" rel="noopener">
-                <xsl:value-of select="if (@type = 'BNF') then 'BnF' else if (@type = 'IDREF') then 'IdRef' else if (@type = 'url') then 'Lien' else @type"/>
-              </a>
-            </xsl:for-each>
-          </p>
-        </xsl:if>
-      </div>
-    </details>
-  </xsl:template>
   <xsl:template match="*[local-name() = 'wrapper'][tei:div[@type = 'index-lettre']] | tei:div[@xml:id = 'index-personnes'][tei:div[@type = 'index-lettre']]" priority="50">
     <section class="div rubrique level1" id="index-personnes">
       <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
       <xsl:call-template name="dl-index-complet"/>
     </section>
   </xsl:template>
-  <xsl:template name="dl-index-complet">
+  <!-- Index des personnes en tableau triable et filtrable (2026-10-13 ; remplace les fiches
+       repliables par lettre du 2026-10-07). Modèles tf-* de tableau-filtrable.xsl,
+       comportement dans delescluze.customJs.js. Colonnes : Nom (et formes du nom), Dates
+       (entre parenthèses dans persName), Fonction (occupation), Notice (biographie, voir
+       aussi, autorités), Mentions (liens par carnet, lettre, passage ; filtre par source,
+       tri sur le nombre de mentions hors passages rédigés, comme le compte des fiches).
+       Chaque ligne garde l'@xml:id de la personne : les liens du texte vers
+       ?refId=index-personnes#personX tombent sur elle. -->
+  <xsl:function name="dl:source" as="xs:string" xmlns:dl="urn:delescluze:xsl" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xsl:param name="liste" as="element()"/>
+    <xsl:variable name="g" select="$liste/tei:ref[@type = 'groupe'][1]"/>
+    <xsl:sequence select="if (starts-with($g/@target, '#lettre')) then 'Lettres'
+                          else if (starts-with($g/@target, '#passage')) then 'Passages rédigés'
+                          else normalize-space($g)"/>
+  </xsl:function>
+
+  <xsl:template name="dl-index-complet" xmlns:dl="urn:delescluze:xsl">
     <xsl:param name="lettres" select="tei:div[@type = 'index-lettre']"/>
-    <div class="dl-index dl-index-complet">
-      <xsl:for-each select="$lettres">
-        <details class="dl-lettre" id="{@xml:id}">
-          <summary>
-            <h2 class="dl-lettre-titre">
-              <xsl:value-of select="substring-after(@xml:id, 'index-personnes-')"/>
-              <span class="dl-lettre-nb"><xsl:value-of select="concat(' (', count(.//tei:person), ')')"/></span>
-            </h2>
-          </summary>
-          <xsl:for-each select=".//tei:person"><xsl:call-template name="dl-fiche"/></xsl:for-each>
-        </details>
-      </xsl:for-each>
+    <xsl:variable name="personnes" select="$lettres//tei:person"/>
+    <xsl:variable name="uca" select="'http://www.w3.org/2013/collation/UCA?lang=fr;strength=primary'"/>
+    <div class="dl-index dl-index-complet tf-cadre">
+      <xsl:call-template name="tf-barre">
+        <xsl:with-param name="total" select="count($personnes)"/>
+        <xsl:with-param name="unite" select="'personnes'"/>
+      </xsl:call-template>
+      <table class="tf-tableau dl-tableau" data-csv-nom="delescluze-personnes" data-csv-entetes="Nom|Dates|Fonction|Notice|Mentions">
+        <caption class="tf-legende">Cliquer sur un en-tête de colonne pour trier (un second clic inverse l’ordre).</caption>
+        <thead>
+          <tr>
+            <xsl:call-template name="tf-th"><xsl:with-param name="classe" select="'dl-c-nom'"/><xsl:with-param name="libelle" select="'Nom'"/></xsl:call-template>
+            <xsl:call-template name="tf-th"><xsl:with-param name="classe" select="'dl-c-dates'"/><xsl:with-param name="libelle" select="'Dates'"/><xsl:with-param name="numerique" select="true()"/></xsl:call-template>
+            <xsl:call-template name="tf-th"><xsl:with-param name="classe" select="'dl-c-fonction'"/><xsl:with-param name="libelle" select="'Fonction'"/></xsl:call-template>
+            <xsl:call-template name="tf-th"><xsl:with-param name="classe" select="'dl-c-notice'"/><xsl:with-param name="libelle" select="'Notice'"/></xsl:call-template>
+            <xsl:call-template name="tf-th"><xsl:with-param name="classe" select="'dl-c-mentions'"/><xsl:with-param name="libelle" select="'Mentions'"/><xsl:with-param name="numerique" select="true()"/></xsl:call-template>
+          </tr>
+          <tr class="tf-filtres">
+            <xsl:call-template name="tf-filtre"><xsl:with-param name="col" select="0"/><xsl:with-param name="libelle" select="'Nom'"/><xsl:with-param name="liste" select="'dl-personnes-noms'"/><xsl:with-param name="suggestions" select="sort(distinct-values($personnes/tei:persName[1] ! normalize-space(replace(., '\s*\([^)]*\)\s*$', ''))), $uca)"/></xsl:call-template>
+            <xsl:call-template name="tf-filtre"><xsl:with-param name="col" select="1"/><xsl:with-param name="libelle" select="'Dates'"/></xsl:call-template>
+            <xsl:call-template name="tf-filtre"><xsl:with-param name="col" select="2"/><xsl:with-param name="libelle" select="'Fonction'"/></xsl:call-template>
+            <xsl:call-template name="tf-filtre"><xsl:with-param name="col" select="3"/><xsl:with-param name="libelle" select="'Notice'"/></xsl:call-template>
+            <xsl:call-template name="tf-filtre"><xsl:with-param name="col" select="4"/><xsl:with-param name="libelle" select="'Mentions'"/><xsl:with-param name="type" select="'liste'"/><xsl:with-param name="options" select="('Carnet 1', 'Carnet 2', 'Introduction', 'Lettres', 'Passages rédigés')"/></xsl:call-template>
+          </tr>
+        </thead>
+        <tbody>
+          <xsl:for-each select="$personnes">
+            <xsl:variable name="nom" select="normalize-space(tei:persName[1])"/>
+            <xsl:variable name="vedette" select="replace($nom, '\s*\([^)]*\)\s*$', '')"/>
+            <xsl:variable name="dates" select="if (matches($nom, '\([^)]*\)\s*$')) then replace($nom, '^.*\(([^)]*)\)\s*$', '$1') else ''"/>
+            <xsl:variable name="annee" select="if (matches($dates, '[0-9]{4}')) then replace($dates, '^[^0-9]*?([0-9]{4}).*$', '$1') else ''"/>
+            <xsl:variable name="fonction" select="normalize-space(string-join(tei:occupation, ' ; '))"/>
+            <xsl:variable name="listes" select="tei:listRef[@type = 'linksToEdition']"/>
+            <xsl:variable name="mentions" select="$listes[not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]/tei:ref[not(@type = 'groupe')]"/>
+            <xsl:variable name="sources" select="distinct-values($listes ! dl:source(.))"/>
+            <tr id="{@xml:id}" data-o="{position()}">
+              <td class="dl-c-nom" data-sort="{$vedette}" data-f="{tf:plat(string-join(($vedette, tei:note[@type = 'localNames']), ' '))}" data-csv="{$vedette}">
+                <span class="dl-fiche-vedette"><xsl:value-of select="$vedette"/></span>
+                <xsl:for-each select="tei:note[@type = 'localNames']">
+                  <span class="dl-fiche-formes"><span class="dl-etiquette">Formes du nom : </span><xsl:apply-templates/></span>
+                </xsl:for-each>
+              </td>
+              <td class="dl-c-dates" data-sort="{$annee}" data-f="{tf:plat($dates)}">
+                <xsl:choose>
+                  <xsl:when test="$dates != ''"><xsl:value-of select="$dates"/></xsl:when>
+                  <xsl:otherwise><span class="tf-vide">—</span></xsl:otherwise>
+                </xsl:choose>
+              </td>
+              <td class="dl-c-fonction" data-sort="{$fonction}" data-f="{tf:plat($fonction)}">
+                <xsl:choose>
+                  <xsl:when test="$fonction != ''"><xsl:value-of select="$fonction"/></xsl:when>
+                  <xsl:otherwise><span class="tf-vide">—</span></xsl:otherwise>
+                </xsl:choose>
+              </td>
+              <xsl:variable name="autorites" select="tei:idno[@type = ('BNF', 'ISNI', 'IDREF', 'url')][normalize-space(@corresp) or starts-with(normalize-space(.), 'http')]"/>
+              <td class="dl-c-notice" data-sort="{normalize-space(string-join(tei:note[@type = 'biography'], ' '))}" data-f="{tf:plat(string-join(tei:note[@type = ('biography', 'seeAlso')], ' '))}" data-csv="{normalize-space(string-join(tei:note[@type = 'biography'], ' '))}">
+                <xsl:choose>
+                  <xsl:when test="tei:note[@type = ('biography', 'seeAlso')] or $autorites">
+                    <xsl:for-each select="tei:note[@type = 'biography']">
+                      <p class="dl-fiche-bio"><xsl:apply-templates/></p>
+                    </xsl:for-each>
+                    <xsl:apply-templates select="tei:note[@type = 'seeAlso']"/>
+                    <xsl:if test="$autorites">
+                      <p class="dl-fiche-autorites">
+                        <span class="dl-etiquette">Autorités : </span>
+                        <xsl:for-each select="$autorites">
+                          <xsl:if test="position() gt 1"><span class="dl-sep"> · </span></xsl:if>
+                          <a href="{if (normalize-space(@corresp)) then normalize-space(@corresp) else normalize-space(.)}" target="_blank" rel="noopener">
+                            <xsl:value-of select="if (@type = 'BNF') then 'BnF' else if (@type = 'IDREF') then 'IdRef' else if (@type = 'url') then 'Lien' else @type"/>
+                          </a>
+                        </xsl:for-each>
+                      </p>
+                    </xsl:if>
+                  </xsl:when>
+                  <xsl:otherwise><span class="tf-vide">—</span></xsl:otherwise>
+                </xsl:choose>
+              </td>
+              <td class="dl-c-mentions" data-sort="{count($mentions)}" data-f="{tf:plat(string-join($sources, ' ; '))}" data-csv="{string-join(for $l in $listes return concat(normalize-space($l/tei:ref[@type = 'groupe'][1]), ' : ', string-join($l/tei:ref[not(@type = 'groupe')] ! normalize-space(.), ', ')), ' ; ')}">
+                <xsl:choose>
+                  <xsl:when test="$listes"><xsl:call-template name="dl-mentions"><xsl:with-param name="listes" select="$listes"/></xsl:call-template></xsl:when>
+                  <xsl:otherwise><span class="tf-vide">—</span></xsl:otherwise>
+                </xsl:choose>
+              </td>
+            </tr>
+          </xsl:for-each>
+        </tbody>
+      </table>
     </div>
+  </xsl:template>
+
+  <!-- Mentions d'une personne : par carnet (avec les passages rédigés qui citent ce carnet),
+       puis lettres et autres sources ; repris des fiches du 2026-10-07. -->
+  <xsl:template name="dl-mentions">
+    <xsl:param name="listes"/>
+    <dl class="dl-fiche-mentions">
+      <xsl:for-each select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet')]">
+        <xsl:variable name="carnet" select="normalize-space(tei:ref[@type = 'groupe'][1])"/>
+        <dt><xsl:value-of select="$carnet"/></dt>
+        <dd>
+          <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
+            <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
+            <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
+              <xsl:value-of select="replace(normalize-space(.), '^page ', 'p.&#160;')"/></a>
+          </xsl:for-each>
+          <xsl:variable name="passages" select="$listes[starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage')]
+              [some $r in tei:ref[not(@type = 'groupe')] satisfies starts-with(normalize-space($r), concat($carnet, ','))]"/>
+          <xsl:for-each select="$passages">
+            <span class="dl-passage">
+              <xsl:text> — </xsl:text>
+              <a><xsl:attribute name="href"><xsl:for-each select="tei:ref[@type = 'groupe'][1]"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
+                <xsl:value-of select="normalize-space(tei:ref[@type = 'groupe'][1])"/></a>
+            </span>
+          </xsl:for-each>
+        </dd>
+      </xsl:for-each>
+      <xsl:for-each select="$listes[not(starts-with(tei:ref[@type = 'groupe'][1]/@target, '#carnet') or starts-with(tei:ref[@type = 'groupe'][1]/@target, '#passage'))]">
+        <xsl:variable name="g" select="tei:ref[@type = 'groupe'][1]"/>
+        <dt>
+          <xsl:choose>
+            <xsl:when test="starts-with($g/@target, '#lettre')">Lettre</xsl:when>
+            <xsl:otherwise><xsl:value-of select="normalize-space($g)"/></xsl:otherwise>
+          </xsl:choose>
+        </dt>
+        <dd>
+          <xsl:if test="starts-with($g/@target, '#lettre')">
+            <a><xsl:attribute name="href"><xsl:for-each select="$g"><xsl:call-template name="dl-href"/></xsl:for-each></xsl:attribute>
+              <xsl:value-of select="normalize-space($g)"/></a>
+            <xsl:text> : </xsl:text>
+          </xsl:if>
+          <xsl:for-each select="tei:ref[not(@type = 'groupe')]">
+            <xsl:if test="position() gt 1"><span class="dl-sep">, </span></xsl:if>
+            <a><xsl:attribute name="href"><xsl:call-template name="dl-href"/></xsl:attribute>
+              <xsl:value-of select="replace(normalize-space(.), '^[Pp]age ', 'p.&#160;')"/></a>
+          </xsl:for-each>
+        </dd>
+      </xsl:for-each>
+    </dl>
   </xsl:template>
   <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
     <xsl:call-template name="biblio-page">
