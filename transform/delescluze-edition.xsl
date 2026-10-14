@@ -8,6 +8,8 @@
   xmlns:tf="urn:elec:tableau-filtrable"
   xmlns:dl="urn:delescluze:xsl"
   exclude-result-prefixes="tei epub xs tf dl">
+  <!-- ==== 0. DÉCLARATIONS : imports, sortie, paramètres, variables, clés, fonctions ==== -->
+
   <!-- Delescluze : surcharge de hteiml, reconstruite le 13/10/2026 en partant du rendu
        hteiml nu.
 
@@ -24,21 +26,33 @@
        sources et de la bibliographie, adresses et post-scriptum des lettres, vers,
        textes insérés, tableaux de comptes. -->
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
+
   <xsl:import href="tableau-filtrable.xsl"/>
+
   <xsl:output indent="no"/>
-  <xsl:template match="*[local-name() = 'wrapper']" priority="20">
-    <xsl:apply-templates/>
-    <xsl:if test="not(tei:text) and .//tei:note[not(parent::tei:person)]">
-      <xsl:call-template name="footnotes">
-        <xsl:with-param name="cont" select="."/>
-      </xsl:call-template>
-    </xsl:if>
-  </xsl:template>
-  <xsl:template name="person-href">
-    <xsl:param name="pid"/>
-    <xsl:text>?refId=index-personnes</xsl:text>
-    <xsl:if test="$pid != ''"><xsl:text>#</xsl:text><xsl:value-of select="$pid"/></xsl:if>
-  </xsl:template>
+
+  <xsl:variable name="accents-from">àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ</xsl:variable>
+
+  <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
+
+  <!-- Index des personnes en tableau triable et filtrable (2026-10-13 ; remplace les fiches
+       repliables par lettre du 2026-10-07). Modèles tf-* de tableau-filtrable.xsl,
+       comportement dans delescluze.customJs.js. Colonnes : Nom (et formes du nom), Dates
+       (entre parenthèses dans persName), Fonction (occupation), Notice (biographie, voir
+       aussi, autorités), Mentions (liens par carnet, lettre, passage ; filtre par source,
+       tri sur le nombre de mentions hors passages rédigés, comme le compte des fiches).
+       Chaque ligne garde l'@xml:id de la personne : les liens du texte vers
+       ?refId=index-personnes#personX tombent sur elle. -->
+  <xsl:function name="dl:source" as="xs:string" xmlns:dl="urn:delescluze:xsl" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xsl:param name="liste" as="element()"/>
+    <xsl:variable name="g" select="$liste/tei:ref[@type = 'groupe'][1]"/>
+    <xsl:sequence select="if (starts-with($g/@target, '#lettre')) then 'Lettres'
+                          else if (starts-with($g/@target, '#passage')) then 'Passages rédigés'
+                          else normalize-space($g)"/>
+  </xsl:function>
+
+  <!-- ==== 1. HISTORIQUE : surcharge reprise de la feuille de l'ÉLEC (rendu du texte de l'édition) ==== -->
+
   <!-- Page à fac-similé : deux colonnes, comme l'ÉLEC (section#facsimile, section#text ;
        des classes ici, un carnet servi entier porte plusieurs pages). -->
   <xsl:template match="tei:div[@type = 'page'][tei:figure[@type = 'facsimile']]" priority="20">
@@ -51,55 +65,25 @@
       </section>
     </section>
   </xsl:template>
-  <!-- Ajout de l'éditeur (« février 1852 », « F ») : dans l'édition, sans marque ; absent de
-       la transcription (CSS). -->
-  <xsl:template match="tei:add" priority="20">
-    <span class="add"><xsl:apply-templates/></span>
+
+  <!-- ==== 2. BLOCS HTEIML GÉNÉRIQUES : enveloppe dts:wrapper, notes, apparat critique, bibliographie (listBibl) ==== -->
+
+  <xsl:template match="*[local-name() = 'wrapper']" priority="20">
+    <xsl:apply-templates/>
+    <xsl:if test="not(tei:text) and .//tei:note[not(parent::tei:person)]">
+      <xsl:call-template name="footnotes">
+        <xsl:with-param name="cont" select="."/>
+      </xsl:call-template>
+    </xsl:if>
   </xsl:template>
-  <xsl:template match="tei:choice[tei:orig][tei:reg]" priority="12">
-    <span class="choice"><span class="reg"><xsl:apply-templates select="tei:reg/node()"/></span><span class="orig"><xsl:apply-templates select="tei:orig/node()"/></span></span>
-  </xsl:template>
-  <xsl:template match="tei:p//tei:lg" priority="20">
-    <span class="lg"><xsl:apply-templates/></span>
-  </xsl:template>
-  <xsl:template match="tei:p//tei:l" priority="20">
-    <span class="l"><xsl:apply-templates/></span>
-  </xsl:template>
-  <xsl:template match="tei:floatingText" priority="20">
-    <div class="floatingText"><xsl:apply-templates select="tei:body/node()"/></div>
-  </xsl:template>
-  <xsl:template match="tei:floatingText/tei:body/tei:head" priority="20">
-    <p class="floatingTextTitle"><xsl:apply-templates/></p>
-  </xsl:template>
-  <xsl:template match="tei:title[@rend = 'underline'][not(@ref)]" priority="20">
-    <cite class="title_underline"><xsl:apply-templates/></cite>
-  </xsl:template>
-  <xsl:template match="tei:gap[@reason = 'illegible']" priority="20">
-    <span class="gapInDel">(illisible)</span>
-  </xsl:template>
-  <xsl:template match="tei:div[@type = 'postscript']" priority="20">
-    <div class="postscript"><xsl:apply-templates/></div>
-  </xsl:template>
-  <xsl:template match="tei:div[@type = 'postscript']/tei:p[1][not(node()[1][self::tei:pb])]" priority="20">
-    <p class="p"><span class="postscriptLabel">(P.S. : ) </span><xsl:apply-templates/></p>
-  </xsl:template>
-  <xsl:template match="tei:div[@type = 'address']" priority="20">
-    <div class="address">
-      <span class="addressLabel">
-        <xsl:choose>
-          <xsl:when test="@rend = 'perpendicular'">(Adresse perpendiculaire à la feuille : )</xsl:when>
-          <xsl:otherwise>(Adresse : )</xsl:otherwise>
-        </xsl:choose>
-      </span>
-      <xsl:apply-templates/>
-    </div>
-  </xsl:template>
+
   <xsl:template match="tei:note[@type = 'apparatus']" priority="20">
     <span class="app" tabindex="0">
       <span class="noteAnchor">[<xsl:value-of select="@n"/>]</span>
       <span class="apparatusNote"><xsl:value-of select="@n"/>. <xsl:apply-templates/></span>
     </span>
   </xsl:template>
+
   <xsl:template name="note">
     <xsl:if test="not(@type = 'apparatus')">
     <xsl:variable name="id">
@@ -146,6 +130,7 @@
     </xsl:element>
     </xsl:if>
   </xsl:template>
+
   <xsl:template match="tei:div[@type = 'page'][@xml:id][.//tei:choice[tei:orig] or .//tei:del or .//tei:note[@type = 'apparatus']]/tei:pb[1]" priority="12">
     <xsl:variable name="p" select="../@xml:id"/>
     <input type="radio" class="dl-mode dl-mode-ed" name="dl-mode-{$p}" id="dl-ed-{$p}" checked="checked"/>
@@ -154,6 +139,230 @@
     <label for="dl-tr-{$p}">Transcription</label>
     <xsl:apply-imports/>
   </xsl:template>
+
+  <xsl:template match="tei:bibl//tei:note" mode="fn"/>
+
+  <xsl:template match="*[local-name() = 'wrapper'][tei:div[@type = 'index-lettre']] | tei:div[@xml:id = 'index-personnes'][tei:div[@type = 'index-lettre']]" priority="50">
+    <section class="div rubrique level1" id="index-personnes">
+      <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
+      <xsl:call-template name="dl-index-complet"/>
+    </section>
+  </xsl:template>
+
+  <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
+    <xsl:call-template name="biblio-page">
+      <xsl:with-param name="div" select="."/>
+      <xsl:with-param name="depots" select="('nationalArchives', 'nationalLibraryFrance', 'institutFrance', 'municipalLibraryLille', 'departementArchivesMorbihan', 'departementArchivesRhone', 'rgaspiMoscou')"/>
+      <xsl:with-param name="noms" select="('Archives nationales', 'Bibliothèque nationale de France', 'Bibliothèque de l’Institut de France', 'Bibliothèque municipale de Lille', 'Archives départementales du Morbihan', 'Archives départementales du Rhône', 'Archives d’État russes d’histoire sociale et politique (RGASPI), Moscou')"/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
+
+  <xsl:template name="biblio-page">
+    <xsl:param name="div" as="element()" select="."/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+    <section class="biblio">
+      <h1 class="biblio-titre"><xsl:apply-templates select="$div/tei:head[1]/node()"/></h1>
+      <xsl:call-template name="biblio-contenu">
+        <xsl:with-param name="noeuds" select="$div/node() except $div/tei:head[1]"/>
+        <xsl:with-param name="depots" select="$depots"/>
+        <xsl:with-param name="noms" select="$noms"/>
+        <xsl:with-param name="lien-base" select="$lien-base"/>
+        <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+        <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+      </xsl:call-template>
+    </section>
+  </xsl:template>
+
+  <xsl:template name="biblio-contenu">
+    <xsl:param name="noeuds" as="node()*"/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+      <xsl:for-each select="$noeuds">
+        <xsl:choose>
+          <xsl:when test="self::tei:div">
+            <div class="biblio-groupe">
+              <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
+              <xsl:if test="tei:head"><h2 class="biblio-rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h2></xsl:if>
+              <xsl:call-template name="biblio-contenu">
+                <xsl:with-param name="noeuds" select="node() except tei:head[1]"/>
+                <xsl:with-param name="depots" select="$depots"/>
+                <xsl:with-param name="noms" select="$noms"/>
+                <xsl:with-param name="lien-base" select="$lien-base"/>
+                <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+                <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+              </xsl:call-template>
+            </div>
+          </xsl:when>
+          <xsl:when test="self::tei:listBibl">
+            <xsl:call-template name="biblio-groupe">
+              <xsl:with-param name="liste" select="."/>
+              <xsl:with-param name="depots" select="$depots"/>
+              <xsl:with-param name="noms" select="$noms"/>
+              <xsl:with-param name="lien-base" select="$lien-base"/>
+              <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
+              <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
+            </xsl:call-template>
+          </xsl:when>
+          <xsl:when test="self::comment() or self::processing-instruction() or (self::text() and normalize-space(.) = '')"/>
+          <xsl:otherwise>
+            <xsl:apply-templates select="."/>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:for-each>
+  </xsl:template>
+
+  <xsl:template name="biblio-groupe">
+    <xsl:param name="liste" as="element()"/>
+    <xsl:param name="depots" as="xs:string*" select="()"/>
+    <xsl:param name="noms" as="xs:string*" select="()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
+    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
+    <xsl:variable name="fonds" select="$liste/tei:bibl[replace(@xml:id, '\d+$', '') = $depots]"/>
+    <div class="biblio-groupe">
+      <xsl:if test="$liste/tei:head">
+        <h2 class="biblio-rubrique"><xsl:apply-templates select="$liste/tei:head[1]/node()"/></h2>
+      </xsl:if>
+      <xsl:if test="$fonds">
+        <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-fonds"/></h3>
+        <xsl:for-each-group select="$fonds" group-by="replace(@xml:id, '\d+$', '')">
+          <div class="biblio-fonds">
+            <h4 class="biblio-depot"><xsl:value-of select="$noms[index-of($depots, current-grouping-key())[1]]"/></h4>
+            <xsl:for-each select="current-group()">
+              <xsl:call-template name="biblio-notice">
+                <xsl:with-param name="cote" select="true()"/>
+              </xsl:call-template>
+            </xsl:for-each>
+          </div>
+        </xsl:for-each-group>
+      </xsl:if>
+      <xsl:if test="$liste/tei:bibl except $fonds">
+        <xsl:if test="$fonds">
+          <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-imprimees"/></h3>
+        </xsl:if>
+        <xsl:for-each select="$liste/tei:bibl except $fonds">
+          <xsl:call-template name="biblio-notice">
+            <xsl:with-param name="lien-base" select="$lien-base"/>
+          </xsl:call-template>
+        </xsl:for-each>
+      </xsl:if>
+      <xsl:apply-templates select="$liste/*[not(self::tei:head or self::tei:bibl)]"/>
+    </div>
+  </xsl:template>
+
+  <xsl:template name="biblio-notice">
+    <xsl:param name="cote" as="xs:boolean" select="false()"/>
+    <xsl:param name="lien-base" as="xs:string" select="''"/>
+    <xsl:variable name="t" select="normalize-space(.)"/>
+    <p class="biblio-notice">
+      <xsl:if test="@xml:id">
+        <xsl:attribute name="id" select="@xml:id"/>
+      </xsl:if>
+      <xsl:choose>
+        <xsl:when test="$cote and matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
+          <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
+          <xsl:text>&#160;: </xsl:text>
+          <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
+        </xsl:when>
+        <xsl:when test="@corresp and $lien-base != ''">
+          <a class="biblio-lien bibl" href="{concat($lien-base, @corresp)}">
+            <xsl:apply-templates select="node()" mode="biblio"/>
+          </a>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:apply-templates select="node()" mode="biblio"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </p>
+  </xsl:template>
+
+  <xsl:template match="tei:author | tei:editor" mode="biblio">
+    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:surname | tei:forename" mode="biblio">
+    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:title[@level = 'a']" mode="biblio">
+    <span class="biblio-titre-article">«&#160;<xsl:apply-templates select="node()" mode="biblio"/>&#160;»</span>
+  </xsl:template>
+
+  <xsl:template match="tei:title" mode="biblio">
+    <cite class="title"><xsl:apply-templates select="node()" mode="biblio"/></cite>
+  </xsl:template>
+
+  <xsl:template match="node()" mode="biblio" priority="-1">
+    <xsl:apply-templates select="."/>
+  </xsl:template>
+
+  <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
+
+  <!-- ==== 3. PROPRE AU PROJET ==== -->
+
+  <!-- Ajout de l'éditeur (« février 1852 », « F ») : dans l'édition, sans marque ; absent de
+       la transcription (CSS). -->
+  <xsl:template match="tei:add" priority="20">
+    <span class="add"><xsl:apply-templates/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:choice[tei:orig][tei:reg]" priority="12">
+    <span class="choice"><span class="reg"><xsl:apply-templates select="tei:reg/node()"/></span><span class="orig"><xsl:apply-templates select="tei:orig/node()"/></span></span>
+  </xsl:template>
+
+  <xsl:template match="tei:p//tei:lg" priority="20">
+    <span class="lg"><xsl:apply-templates/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:p//tei:l" priority="20">
+    <span class="l"><xsl:apply-templates/></span>
+  </xsl:template>
+
+  <xsl:template match="tei:floatingText" priority="20">
+    <div class="floatingText"><xsl:apply-templates select="tei:body/node()"/></div>
+  </xsl:template>
+
+  <xsl:template match="tei:floatingText/tei:body/tei:head" priority="20">
+    <p class="floatingTextTitle"><xsl:apply-templates/></p>
+  </xsl:template>
+
+  <xsl:template match="tei:title[@rend = 'underline'][not(@ref)]" priority="20">
+    <cite class="title_underline"><xsl:apply-templates/></cite>
+  </xsl:template>
+
+  <xsl:template match="tei:gap[@reason = 'illegible']" priority="20">
+    <span class="gapInDel">(illisible)</span>
+  </xsl:template>
+
+  <xsl:template match="tei:div[@type = 'postscript']" priority="20">
+    <div class="postscript"><xsl:apply-templates/></div>
+  </xsl:template>
+
+  <xsl:template match="tei:div[@type = 'postscript']/tei:p[1][not(node()[1][self::tei:pb])]" priority="20">
+    <p class="p"><span class="postscriptLabel">(P.S. : ) </span><xsl:apply-templates/></p>
+  </xsl:template>
+
+  <xsl:template match="tei:div[@type = 'address']" priority="20">
+    <div class="address">
+      <span class="addressLabel">
+        <xsl:choose>
+          <xsl:when test="@rend = 'perpendicular'">(Adresse perpendiculaire à la feuille : )</xsl:when>
+          <xsl:otherwise>(Adresse : )</xsl:otherwise>
+        </xsl:choose>
+      </span>
+      <xsl:apply-templates/>
+    </div>
+  </xsl:template>
+
   <xsl:template match="tei:figure[@type = 'facsimile']" priority="20">
     <xsl:variable name="pid" select="../@xml:id"/>
     <div class="facsimile">
@@ -196,6 +405,7 @@
       </div>
     </xsl:if>
   </xsl:template>
+
   <xsl:template match="tei:ab[@type = 'correspDesc']" priority="20">
     <p class="correspDesc">
       <xsl:value-of select="normalize-space(tei:seg[@type='sent'])"/>
@@ -209,12 +419,169 @@
       </xsl:if>
     </p>
   </xsl:template>
+
   <xsl:template match="tei:opener" priority="20">
     <div class="opener"><xsl:apply-templates/></div>
   </xsl:template>
-  <xsl:variable name="accents-from">àáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ</xsl:variable>
-  <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
-  <xsl:template match="tei:bibl//tei:note" mode="fn"/>
+
+  <xsl:template match="tei:graphic" priority="20">
+    <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
+    <a id="{$id}" href="#{$id}">
+      <img alt="{normalize-space(.)}">
+        <xsl:attribute name="src">
+          <xsl:choose>
+            <xsl:when test="starts-with(@url, 'http://') or starts-with(@url, 'https://')"><xsl:value-of select="@url"/></xsl:when>
+            <xsl:when test="starts-with(@url, '/delescluze/img/')">
+              <xsl:text>../../images/delescluze/img/</xsl:text>
+              <xsl:value-of select="substring-after(@url, '/delescluze/img/')"/>
+            </xsl:when>
+            <xsl:when test="starts-with(@url, './img/')"><xsl:text>../../images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
+            <xsl:when test="starts-with(@url, 'img/')">
+              <xsl:text>../../images/delescluze/img/</xsl:text>
+              <xsl:value-of select="substring-after(@url, 'img/')"/>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:text>../../images/delescluze/img/</xsl:text>
+              <xsl:value-of select="@url"/>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:attribute>
+      </img>
+    </a>
+  </xsl:template>
+
+  <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
+
+  <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
+
+  <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
+
+  <xsl:template name="dl-mois-liste">
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-01</xsl:with-param><xsl:with-param name="libelle">janvier 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-02</xsl:with-param><xsl:with-param name="libelle">février 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-03</xsl:with-param><xsl:with-param name="libelle">mars 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page006</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-04</xsl:with-param><xsl:with-param name="libelle">avril 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page009</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-05</xsl:with-param><xsl:with-param name="libelle">mai 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page031</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-06</xsl:with-param><xsl:with-param name="libelle">juin 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page037</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-07</xsl:with-param><xsl:with-param name="libelle">juillet 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page046</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-08</xsl:with-param><xsl:with-param name="libelle">août 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page051</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-09</xsl:with-param><xsl:with-param name="libelle">septembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page060</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-10</xsl:with-param><xsl:with-param name="libelle">octobre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page074</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-11</xsl:with-param><xsl:with-param name="libelle">novembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page004</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-12</xsl:with-param><xsl:with-param name="libelle">décembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page011</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-01</xsl:with-param><xsl:with-param name="libelle">janvier 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page016</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-02</xsl:with-param><xsl:with-param name="libelle">février 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page021</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-03</xsl:with-param><xsl:with-param name="libelle">mars 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page025</xsl:with-param></xsl:call-template>
+    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-04</xsl:with-param><xsl:with-param name="libelle">avril 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page030</xsl:with-param></xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name="dl-mois-item">
+    <xsl:param name="id"/>
+    <xsl:param name="libelle"/>
+    <xsl:param name="ancetre"/>
+    <xsl:param name="page"/>
+    <li>
+      <xsl:choose>
+        <xsl:when test="../descendant::tei:div[@type = 'day']/tei:head/tei:date[substring(@when, 1, 7) = $id]">
+          <strong class="dl-mois-courant" aria-current="page">
+            <xsl:value-of select="$libelle"/>
+          </strong>
+        </xsl:when>
+        <xsl:otherwise>
+          <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
+            <xsl:value-of select="$libelle"/>
+          </a>
+        </xsl:otherwise>
+      </xsl:choose>
+    </li>
+  </xsl:template>
+
+  <xsl:template name="dl-intervalle">
+    <xsl:param name="a"/>
+    <xsl:param name="b"/>
+    <xsl:choose>
+      <xsl:when test="string($a) = string($b)">
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+      </xsl:when>
+      <xsl:when test="substring($a, 1, 7) = substring($b, 1, 7)">
+        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:when>
+      <xsl:when test="substring($a, 1, 4) = substring($b, 1, 4)">
+        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text> </xsl:text>
+        <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
+        <xsl:text>-</xsl:text>
+        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="dl-date">
+    <xsl:param name="d"/>
+    <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$d"/></xsl:call-template>
+    <xsl:text> </xsl:text>
+    <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$d"/></xsl:call-template>
+    <xsl:text> </xsl:text>
+    <xsl:value-of select="substring($d, 1, 4)"/>
+  </xsl:template>
+
+  <xsl:template name="dl-jour">
+    <xsl:param name="d"/>
+    <xsl:choose>
+      <xsl:when test="substring($d, 9, 2) = '01'">1<sup>er</sup></xsl:when>
+      <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="dl-nom-mois">
+    <xsl:param name="d"/>
+    <xsl:variable name="m" select="substring($d, 6, 2)"/>
+    <xsl:choose>
+      <xsl:when test="$m = '01'">janvier</xsl:when>
+      <xsl:when test="$m = '02'">février</xsl:when>
+      <xsl:when test="$m = '03'">mars</xsl:when>
+      <xsl:when test="$m = '04'">avril</xsl:when>
+      <xsl:when test="$m = '05'">mai</xsl:when>
+      <xsl:when test="$m = '06'">juin</xsl:when>
+      <xsl:when test="$m = '07'">juillet</xsl:when>
+      <xsl:when test="$m = '08'">août</xsl:when>
+      <xsl:when test="$m = '09'">septembre</xsl:when>
+      <xsl:when test="$m = '10'">octobre</xsl:when>
+      <xsl:when test="$m = '11'">novembre</xsl:when>
+      <xsl:otherwise>décembre</xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row[count(tei:cell) = 1]/tei:cell[@cols = 2]"
+                priority="30">
+    <th colspan="2" scope="colgroup">
+      <xsl:apply-templates/>
+    </th>
+  </xsl:template>
+
+  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row/tei:cell[1][following-sibling::tei:cell][starts-with(normalize-space(.), 'Total') or starts-with(normalize-space(.), '[Total]') or starts-with(normalize-space(.), 'Reste') or starts-with(normalize-space(.), '[Reste]') or starts-with(normalize-space(.), 'Restant') or starts-with(normalize-space(.), 'Avoir') or starts-with(normalize-space(.), '[Avoir]') or starts-with(normalize-space(.), 'Report')]"
+                priority="30">
+    <th scope="row">
+      <xsl:apply-templates/>
+    </th>
+  </xsl:template>
+
+  <!-- ==== 4. MÉCANISMES COMMUNS : tableau filtrable (tf-*), liens vers l'ancien site (D5), liens internes entre fragments ==== -->
+
+  <xsl:template name="person-href">
+    <xsl:param name="pid"/>
+    <xsl:text>?refId=index-personnes</xsl:text>
+    <xsl:if test="$pid != ''"><xsl:text>#</xsl:text><xsl:value-of select="$pid"/></xsl:if>
+  </xsl:template>
+
   <xsl:template match="tei:ref[@type = 'bibl'][starts-with(@target, '#')]" priority="25">
     <xsl:variable name="cible" select="substring-after(@target, '#')"/>
     <xsl:variable name="bid">
@@ -237,6 +604,7 @@
       <xsl:apply-templates/>
     </a>
   </xsl:template>
+
   <xsl:template match="tei:persName[starts-with(@ref, '#person')] | tei:name[starts-with(@ref, '#person')] | tei:rs[starts-with(@ref, '#person')]" priority="25">
     <a class="linkToIndex">
       <xsl:attribute name="href">
@@ -247,9 +615,11 @@
       <xsl:apply-templates/>
     </a>
   </xsl:template>
+
   <xsl:template match="tei:ref[starts-with(@target, '#le-projet-')]" priority="25">
     <a href="?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
+
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
@@ -261,27 +631,6 @@
       <xsl:otherwise><xsl:value-of select="substring-after(@target, '#')"/></xsl:otherwise>
     </xsl:choose>
   </xsl:template>
-  <xsl:template match="*[local-name() = 'wrapper'][tei:div[@type = 'index-lettre']] | tei:div[@xml:id = 'index-personnes'][tei:div[@type = 'index-lettre']]" priority="50">
-    <section class="div rubrique level1" id="index-personnes">
-      <h1 class="head rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h1>
-      <xsl:call-template name="dl-index-complet"/>
-    </section>
-  </xsl:template>
-  <!-- Index des personnes en tableau triable et filtrable (2026-10-13 ; remplace les fiches
-       repliables par lettre du 2026-10-07). Modèles tf-* de tableau-filtrable.xsl,
-       comportement dans delescluze.customJs.js. Colonnes : Nom (et formes du nom), Dates
-       (entre parenthèses dans persName), Fonction (occupation), Notice (biographie, voir
-       aussi, autorités), Mentions (liens par carnet, lettre, passage ; filtre par source,
-       tri sur le nombre de mentions hors passages rédigés, comme le compte des fiches).
-       Chaque ligne garde l'@xml:id de la personne : les liens du texte vers
-       ?refId=index-personnes#personX tombent sur elle. -->
-  <xsl:function name="dl:source" as="xs:string" xmlns:dl="urn:delescluze:xsl" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-    <xsl:param name="liste" as="element()"/>
-    <xsl:variable name="g" select="$liste/tei:ref[@type = 'groupe'][1]"/>
-    <xsl:sequence select="if (starts-with($g/@target, '#lettre')) then 'Lettres'
-                          else if (starts-with($g/@target, '#passage')) then 'Passages rédigés'
-                          else normalize-space($g)"/>
-  </xsl:function>
 
   <xsl:template name="dl-index-complet" xmlns:dl="urn:delescluze:xsl">
     <xsl:param name="lettres" select="tei:div[@type = 'index-lettre']"/>
@@ -434,151 +783,7 @@
       </xsl:for-each>
     </dl>
   </xsl:template>
-  <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
-    <xsl:call-template name="biblio-page">
-      <xsl:with-param name="div" select="."/>
-      <xsl:with-param name="depots" select="('nationalArchives', 'nationalLibraryFrance', 'institutFrance', 'municipalLibraryLille', 'departementArchivesMorbihan', 'departementArchivesRhone', 'rgaspiMoscou')"/>
-      <xsl:with-param name="noms" select="('Archives nationales', 'Bibliothèque nationale de France', 'Bibliothèque de l’Institut de France', 'Bibliothèque municipale de Lille', 'Archives départementales du Morbihan', 'Archives départementales du Rhône', 'Archives d’État russes d’histoire sociale et politique (RGASPI), Moscou')"/>
-    </xsl:call-template>
-  </xsl:template>
-  <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
-  <xsl:template name="biblio-page">
-    <xsl:param name="div" as="element()" select="."/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-    <section class="biblio">
-      <h1 class="biblio-titre"><xsl:apply-templates select="$div/tei:head[1]/node()"/></h1>
-      <xsl:call-template name="biblio-contenu">
-        <xsl:with-param name="noeuds" select="$div/node() except $div/tei:head[1]"/>
-        <xsl:with-param name="depots" select="$depots"/>
-        <xsl:with-param name="noms" select="$noms"/>
-        <xsl:with-param name="lien-base" select="$lien-base"/>
-        <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-        <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-      </xsl:call-template>
-    </section>
-  </xsl:template>
-  <xsl:template name="biblio-contenu">
-    <xsl:param name="noeuds" as="node()*"/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-      <xsl:for-each select="$noeuds">
-        <xsl:choose>
-          <xsl:when test="self::tei:div">
-            <div class="biblio-groupe">
-              <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
-              <xsl:if test="tei:head"><h2 class="biblio-rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h2></xsl:if>
-              <xsl:call-template name="biblio-contenu">
-                <xsl:with-param name="noeuds" select="node() except tei:head[1]"/>
-                <xsl:with-param name="depots" select="$depots"/>
-                <xsl:with-param name="noms" select="$noms"/>
-                <xsl:with-param name="lien-base" select="$lien-base"/>
-                <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-                <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-              </xsl:call-template>
-            </div>
-          </xsl:when>
-          <xsl:when test="self::tei:listBibl">
-            <xsl:call-template name="biblio-groupe">
-              <xsl:with-param name="liste" select="."/>
-              <xsl:with-param name="depots" select="$depots"/>
-              <xsl:with-param name="noms" select="$noms"/>
-              <xsl:with-param name="lien-base" select="$lien-base"/>
-              <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-              <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-            </xsl:call-template>
-          </xsl:when>
-          <xsl:when test="self::comment() or self::processing-instruction() or (self::text() and normalize-space(.) = '')"/>
-          <xsl:otherwise>
-            <xsl:apply-templates select="."/>
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:for-each>
-  </xsl:template>
-  <xsl:template name="biblio-groupe">
-    <xsl:param name="liste" as="element()"/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-    <xsl:variable name="fonds" select="$liste/tei:bibl[replace(@xml:id, '\d+$', '') = $depots]"/>
-    <div class="biblio-groupe">
-      <xsl:if test="$liste/tei:head">
-        <h2 class="biblio-rubrique"><xsl:apply-templates select="$liste/tei:head[1]/node()"/></h2>
-      </xsl:if>
-      <xsl:if test="$fonds">
-        <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-fonds"/></h3>
-        <xsl:for-each-group select="$fonds" group-by="replace(@xml:id, '\d+$', '')">
-          <div class="biblio-fonds">
-            <h4 class="biblio-depot"><xsl:value-of select="$noms[index-of($depots, current-grouping-key())[1]]"/></h4>
-            <xsl:for-each select="current-group()">
-              <xsl:call-template name="biblio-notice">
-                <xsl:with-param name="cote" select="true()"/>
-              </xsl:call-template>
-            </xsl:for-each>
-          </div>
-        </xsl:for-each-group>
-      </xsl:if>
-      <xsl:if test="$liste/tei:bibl except $fonds">
-        <xsl:if test="$fonds">
-          <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-imprimees"/></h3>
-        </xsl:if>
-        <xsl:for-each select="$liste/tei:bibl except $fonds">
-          <xsl:call-template name="biblio-notice">
-            <xsl:with-param name="lien-base" select="$lien-base"/>
-          </xsl:call-template>
-        </xsl:for-each>
-      </xsl:if>
-      <xsl:apply-templates select="$liste/*[not(self::tei:head or self::tei:bibl)]"/>
-    </div>
-  </xsl:template>
-  <xsl:template name="biblio-notice">
-    <xsl:param name="cote" as="xs:boolean" select="false()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:variable name="t" select="normalize-space(.)"/>
-    <p class="biblio-notice">
-      <xsl:if test="@xml:id">
-        <xsl:attribute name="id" select="@xml:id"/>
-      </xsl:if>
-      <xsl:choose>
-        <xsl:when test="$cote and matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
-          <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
-          <xsl:text>&#160;: </xsl:text>
-          <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
-        </xsl:when>
-        <xsl:when test="@corresp and $lien-base != ''">
-          <a class="biblio-lien bibl" href="{concat($lien-base, @corresp)}">
-            <xsl:apply-templates select="node()" mode="biblio"/>
-          </a>
-        </xsl:when>
-        <xsl:otherwise>
-          <xsl:apply-templates select="node()" mode="biblio"/>
-        </xsl:otherwise>
-      </xsl:choose>
-    </p>
-  </xsl:template>
-  <xsl:template match="tei:author | tei:editor" mode="biblio">
-    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
-  </xsl:template>
-  <xsl:template match="tei:surname | tei:forename" mode="biblio">
-    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
-  </xsl:template>
-  <xsl:template match="tei:title[@level = 'a']" mode="biblio">
-    <span class="biblio-titre-article">«&#160;<xsl:apply-templates select="node()" mode="biblio"/>&#160;»</span>
-  </xsl:template>
-  <xsl:template match="tei:title" mode="biblio">
-    <cite class="title"><xsl:apply-templates select="node()" mode="biblio"/></cite>
-  </xsl:template>
-  <xsl:template match="node()" mode="biblio" priority="-1">
-    <xsl:apply-templates select="."/>
-  </xsl:template>
+
   <xsl:template match="tei:person/tei:note[@type = 'seeAlso']" priority="25">
     <xsl:variable name="see" select="tei:ref[starts-with(@target, '#person')]"/>
     <xsl:choose>
@@ -603,144 +808,5 @@
         <p class="seeAlso"><xsl:apply-templates/></p>
       </xsl:otherwise>
     </xsl:choose>
-  </xsl:template>
-  <xsl:template match="tei:graphic" priority="20">
-    <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
-    <a id="{$id}" href="#{$id}">
-      <img alt="{normalize-space(.)}">
-        <xsl:attribute name="src">
-          <xsl:choose>
-            <xsl:when test="starts-with(@url, 'http://') or starts-with(@url, 'https://')"><xsl:value-of select="@url"/></xsl:when>
-            <xsl:when test="starts-with(@url, '/delescluze/img/')">
-              <xsl:text>../../images/delescluze/img/</xsl:text>
-              <xsl:value-of select="substring-after(@url, '/delescluze/img/')"/>
-            </xsl:when>
-            <xsl:when test="starts-with(@url, './img/')"><xsl:text>../../images/delescluze/img/</xsl:text><xsl:value-of select="substring-after(@url, './img/')"/></xsl:when>
-            <xsl:when test="starts-with(@url, 'img/')">
-              <xsl:text>../../images/delescluze/img/</xsl:text>
-              <xsl:value-of select="substring-after(@url, 'img/')"/>
-            </xsl:when>
-            <xsl:otherwise>
-              <xsl:text>../../images/delescluze/img/</xsl:text>
-              <xsl:value-of select="@url"/>
-            </xsl:otherwise>
-          </xsl:choose>
-        </xsl:attribute>
-      </img>
-    </a>
-  </xsl:template>
-  <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
-  <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
-  <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
-  <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
-  <xsl:template name="dl-mois-liste">
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-01</xsl:with-param><xsl:with-param name="libelle">janvier 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-02</xsl:with-param><xsl:with-param name="libelle">février 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-03</xsl:with-param><xsl:with-param name="libelle">mars 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page006</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-04</xsl:with-param><xsl:with-param name="libelle">avril 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page009</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-05</xsl:with-param><xsl:with-param name="libelle">mai 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page031</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-06</xsl:with-param><xsl:with-param name="libelle">juin 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page037</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-07</xsl:with-param><xsl:with-param name="libelle">juillet 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page046</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-08</xsl:with-param><xsl:with-param name="libelle">août 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page051</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-09</xsl:with-param><xsl:with-param name="libelle">septembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page060</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-10</xsl:with-param><xsl:with-param name="libelle">octobre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page074</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-11</xsl:with-param><xsl:with-param name="libelle">novembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page004</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-12</xsl:with-param><xsl:with-param name="libelle">décembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page011</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-01</xsl:with-param><xsl:with-param name="libelle">janvier 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page016</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-02</xsl:with-param><xsl:with-param name="libelle">février 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page021</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-03</xsl:with-param><xsl:with-param name="libelle">mars 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page025</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-04</xsl:with-param><xsl:with-param name="libelle">avril 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page030</xsl:with-param></xsl:call-template>
-  </xsl:template>
-  <xsl:template name="dl-mois-item">
-    <xsl:param name="id"/>
-    <xsl:param name="libelle"/>
-    <xsl:param name="ancetre"/>
-    <xsl:param name="page"/>
-    <li>
-      <xsl:choose>
-        <xsl:when test="../descendant::tei:div[@type = 'day']/tei:head/tei:date[substring(@when, 1, 7) = $id]">
-          <strong class="dl-mois-courant" aria-current="page">
-            <xsl:value-of select="$libelle"/>
-          </strong>
-        </xsl:when>
-        <xsl:otherwise>
-          <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
-            <xsl:value-of select="$libelle"/>
-          </a>
-        </xsl:otherwise>
-      </xsl:choose>
-    </li>
-  </xsl:template>
-  <xsl:template name="dl-intervalle">
-    <xsl:param name="a"/>
-    <xsl:param name="b"/>
-    <xsl:choose>
-      <xsl:when test="string($a) = string($b)">
-        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
-      </xsl:when>
-      <xsl:when test="substring($a, 1, 7) = substring($b, 1, 7)">
-        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
-        <xsl:text>-</xsl:text>
-        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
-      </xsl:when>
-      <xsl:when test="substring($a, 1, 4) = substring($b, 1, 4)">
-        <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$a"/></xsl:call-template>
-        <xsl:text> </xsl:text>
-        <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$a"/></xsl:call-template>
-        <xsl:text>-</xsl:text>
-        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
-      </xsl:when>
-      <xsl:otherwise>
-        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$a"/></xsl:call-template>
-        <xsl:text>-</xsl:text>
-        <xsl:call-template name="dl-date"><xsl:with-param name="d" select="$b"/></xsl:call-template>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:template>
-  <xsl:template name="dl-date">
-    <xsl:param name="d"/>
-    <xsl:call-template name="dl-jour"><xsl:with-param name="d" select="$d"/></xsl:call-template>
-    <xsl:text> </xsl:text>
-    <xsl:call-template name="dl-nom-mois"><xsl:with-param name="d" select="$d"/></xsl:call-template>
-    <xsl:text> </xsl:text>
-    <xsl:value-of select="substring($d, 1, 4)"/>
-  </xsl:template>
-  <xsl:template name="dl-jour">
-    <xsl:param name="d"/>
-    <xsl:choose>
-      <xsl:when test="substring($d, 9, 2) = '01'">1<sup>er</sup></xsl:when>
-      <xsl:otherwise><xsl:value-of select="number(substring($d, 9, 2))"/></xsl:otherwise>
-    </xsl:choose>
-  </xsl:template>
-  <xsl:template name="dl-nom-mois">
-    <xsl:param name="d"/>
-    <xsl:variable name="m" select="substring($d, 6, 2)"/>
-    <xsl:choose>
-      <xsl:when test="$m = '01'">janvier</xsl:when>
-      <xsl:when test="$m = '02'">février</xsl:when>
-      <xsl:when test="$m = '03'">mars</xsl:when>
-      <xsl:when test="$m = '04'">avril</xsl:when>
-      <xsl:when test="$m = '05'">mai</xsl:when>
-      <xsl:when test="$m = '06'">juin</xsl:when>
-      <xsl:when test="$m = '07'">juillet</xsl:when>
-      <xsl:when test="$m = '08'">août</xsl:when>
-      <xsl:when test="$m = '09'">septembre</xsl:when>
-      <xsl:when test="$m = '10'">octobre</xsl:when>
-      <xsl:when test="$m = '11'">novembre</xsl:when>
-      <xsl:otherwise>décembre</xsl:otherwise>
-    </xsl:choose>
-  </xsl:template>
-  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row[count(tei:cell) = 1]/tei:cell[@cols = 2]"
-                priority="30">
-    <th colspan="2" scope="colgroup">
-      <xsl:apply-templates/>
-    </th>
-  </xsl:template>
-  <xsl:template match="tei:table[not(.//tei:cell[@role = 'label'] or .//tei:row[@role = 'label'])]/tei:row/tei:cell[1][following-sibling::tei:cell][starts-with(normalize-space(.), 'Total') or starts-with(normalize-space(.), '[Total]') or starts-with(normalize-space(.), 'Reste') or starts-with(normalize-space(.), '[Reste]') or starts-with(normalize-space(.), 'Restant') or starts-with(normalize-space(.), 'Avoir') or starts-with(normalize-space(.), '[Avoir]') or starts-with(normalize-space(.), 'Report')]"
-                priority="30">
-    <th scope="row">
-      <xsl:apply-templates/>
-    </th>
   </xsl:template>
 </xsl:transform>
