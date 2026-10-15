@@ -7,7 +7,8 @@
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:tf="urn:elec:tableau-filtrable"
   xmlns:dl="urn:delescluze:xsl"
-  exclude-result-prefixes="tei epub xs tf dl">
+  xmlns:bib="urn:elec:bibliographie"
+  exclude-result-prefixes="tei epub xs tf dl bib">
   <!-- ==== 0. DÉCLARATIONS : imports, sortie, paramètres, variables, clés, fonctions ==== -->
 
   <!-- Delescluze : surcharge de hteiml, reconstruite le 13/10/2026 en partant du rendu
@@ -28,6 +29,7 @@
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
 
   <xsl:import href="tableau-filtrable.xsl"/>
+  <xsl:import href="bibliographie.xsl"/><!-- bibliographies : module commun (2026-10-15) -->
 
   <xsl:output indent="no"/>
 
@@ -149,161 +151,91 @@
     </section>
   </xsl:template>
 
-  <xsl:template match="*[local-name() = 'wrapper'][normalize-space(tei:head[1]) = 'Sources et bibliographie'] | tei:div[@xml:id = 'sources-et-bibliographie']" priority="45">
-    <xsl:call-template name="biblio-page">
-      <xsl:with-param name="div" select="."/>
-      <xsl:with-param name="depots" select="('nationalArchives', 'nationalLibraryFrance', 'institutFrance', 'municipalLibraryLille', 'departementArchivesMorbihan', 'departementArchivesRhone', 'rgaspiMoscou')"/>
-      <xsl:with-param name="noms" select="('Archives nationales', 'Bibliothèque nationale de France', 'Bibliothèque de l’Institut de France', 'Bibliothèque municipale de Lille', 'Archives départementales du Morbihan', 'Archives départementales du Rhône', 'Archives d’État russes d’histoire sociale et politique (RGASPI), Moscou')"/>
-    </xsl:call-template>
+  <!-- Bibliographie : module générique bibliographie.xsl (2026-10-15). Écart Delescluze, repris de
+       l'ancienne page : dans « Sources », les cotes d'archives sont rangées en « Sources
+       manuscrites » par dépôt (préfixe de leur xml:id), puis viennent les « Sources imprimées ». -->
+  <xsl:variable name="dl-depots" select="('nationalArchives', 'nationalLibraryFrance', 'institutFrance', 'municipalLibraryLille', 'departementArchivesMorbihan', 'departementArchivesRhone', 'rgaspiMoscou')"/>
+  <xsl:variable name="dl-noms-depots" select="('Archives nationales', 'Bibliothèque nationale de France', 'Bibliothèque de l’Institut de France', 'Bibliothèque municipale de Lille', 'Archives départementales du Morbihan', 'Archives départementales du Rhône', 'Archives d’État russes d’histoire sociale et politique (RGASPI), Moscou')"/>
+
+  <xsl:template match="tei:listBibl[tei:head][tei:bibl[replace(@xml:id, '\d+$', '') = $dl-depots]]" priority="10">
+    <xsl:variable name="fonds" select="tei:bibl[replace(@xml:id, '\d+$', '') = $dl-depots]"/>
+    <details class="biblio" open="open">
+      <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
+      <summary>
+        <h2 class="head biblio-rubrique"><xsl:apply-templates select="tei:head[1]/node()"/><xsl:text> </xsl:text><span class="biblio-compte">(<xsl:value-of select="count(.//tei:bibl)"/>)</span></h2>
+      </summary>
+      <xsl:call-template name="dl-rubrique">
+        <xsl:with-param name="titre">Sources manuscrites</xsl:with-param>
+        <xsl:with-param name="niveau" select="3"/>
+        <xsl:with-param name="bibl" select="$fonds"/>
+        <xsl:with-param name="par-depot" select="true()"/>
+      </xsl:call-template>
+      <xsl:call-template name="dl-rubrique">
+        <xsl:with-param name="titre">Sources imprimées</xsl:with-param>
+        <xsl:with-param name="niveau" select="3"/>
+        <xsl:with-param name="bibl" select="tei:bibl except $fonds"/>
+      </xsl:call-template>
+      <xsl:apply-templates select="* except (tei:head[1], tei:bibl)"/>
+    </details>
+  </xsl:template>
+
+  <xsl:template name="dl-rubrique">
+    <xsl:param name="titre"/>
+    <xsl:param name="niveau"/>
+    <xsl:param name="bibl"/>
+    <xsl:param name="par-depot" select="false()"/>
+    <xsl:param name="annees" select="true()"/>
+    <xsl:if test="$bibl">
+      <details class="biblio" open="open">
+        <summary>
+          <xsl:element name="h{$niveau}">
+            <xsl:attribute name="class">head biblio-rubrique</xsl:attribute>
+            <xsl:value-of select="$titre"/><xsl:text> </xsl:text><span class="biblio-compte">(<xsl:value-of select="count($bibl)"/>)</span>
+          </xsl:element>
+        </summary>
+        <xsl:choose>
+          <xsl:when test="$par-depot">
+            <xsl:for-each-group select="$bibl" group-by="replace(@xml:id, '\d+$', '')">
+              <xsl:call-template name="dl-rubrique">
+                <xsl:with-param name="titre" select="$dl-noms-depots[index-of($dl-depots, current-grouping-key())[1]]"/>
+                <xsl:with-param name="niveau" select="$niveau + 1"/>
+                <xsl:with-param name="bibl" select="current-group()"/>
+                <!-- pas d'année à droite d'une cote : « BB/18/1488 » n'est pas une date -->
+                <xsl:with-param name="annees" select="false()"/>
+              </xsl:call-template>
+            </xsl:for-each-group>
+          </xsl:when>
+          <xsl:otherwise>
+            <ul class="listBibl biblio-liste">
+              <xsl:for-each select="$bibl">
+                <li class="bibl">
+                  <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
+                  <span class="bibl-texte"><xsl:apply-templates select="." mode="biblio-texte"/></span>
+                  <xsl:variable name="annee" select="if ($annees) then bib:annee(.) else ()"/>
+                  <xsl:if test="$annee"><span class="bibl-annee"><xsl:value-of select="$annee"/></span></xsl:if>
+                </li>
+              </xsl:for-each>
+            </ul>
+          </xsl:otherwise>
+        </xsl:choose>
+      </details>
+    </xsl:if>
+  </xsl:template>
+
+  <!-- Cote d'archives en tête de la notice (« 494AP/1 : Fonds… »), comme sur l'ancienne page. -->
+  <xsl:template match="tei:bibl[replace(@xml:id, '\d+$', '') = $dl-depots]" mode="biblio-texte">
+    <xsl:variable name="t" select="normalize-space(.)"/>
+    <xsl:choose>
+      <xsl:when test="matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
+        <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
+        <xsl:text>&#160;: </xsl:text>
+        <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
+      </xsl:when>
+      <xsl:otherwise><xsl:apply-templates/></xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="tei:p[contains(., 'apparat bibliographique encodé')]" priority="45"/>
-
-  <xsl:template name="biblio-page">
-    <xsl:param name="div" as="element()" select="."/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-    <section class="biblio">
-      <h1 class="biblio-titre"><xsl:apply-templates select="$div/tei:head[1]/node()"/></h1>
-      <xsl:call-template name="biblio-contenu">
-        <xsl:with-param name="noeuds" select="$div/node() except $div/tei:head[1]"/>
-        <xsl:with-param name="depots" select="$depots"/>
-        <xsl:with-param name="noms" select="$noms"/>
-        <xsl:with-param name="lien-base" select="$lien-base"/>
-        <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-        <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-      </xsl:call-template>
-    </section>
-  </xsl:template>
-
-  <xsl:template name="biblio-contenu">
-    <xsl:param name="noeuds" as="node()*"/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-      <xsl:for-each select="$noeuds">
-        <xsl:choose>
-          <xsl:when test="self::tei:div">
-            <div class="biblio-groupe">
-              <xsl:if test="@xml:id"><xsl:attribute name="id" select="@xml:id"/></xsl:if>
-              <xsl:if test="tei:head"><h2 class="biblio-rubrique"><xsl:apply-templates select="tei:head[1]/node()"/></h2></xsl:if>
-              <xsl:call-template name="biblio-contenu">
-                <xsl:with-param name="noeuds" select="node() except tei:head[1]"/>
-                <xsl:with-param name="depots" select="$depots"/>
-                <xsl:with-param name="noms" select="$noms"/>
-                <xsl:with-param name="lien-base" select="$lien-base"/>
-                <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-                <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-              </xsl:call-template>
-            </div>
-          </xsl:when>
-          <xsl:when test="self::tei:listBibl">
-            <xsl:call-template name="biblio-groupe">
-              <xsl:with-param name="liste" select="."/>
-              <xsl:with-param name="depots" select="$depots"/>
-              <xsl:with-param name="noms" select="$noms"/>
-              <xsl:with-param name="lien-base" select="$lien-base"/>
-              <xsl:with-param name="titre-fonds" select="$titre-fonds"/>
-              <xsl:with-param name="titre-imprimees" select="$titre-imprimees"/>
-            </xsl:call-template>
-          </xsl:when>
-          <xsl:when test="self::comment() or self::processing-instruction() or (self::text() and normalize-space(.) = '')"/>
-          <xsl:otherwise>
-            <xsl:apply-templates select="."/>
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:for-each>
-  </xsl:template>
-
-  <xsl:template name="biblio-groupe">
-    <xsl:param name="liste" as="element()"/>
-    <xsl:param name="depots" as="xs:string*" select="()"/>
-    <xsl:param name="noms" as="xs:string*" select="()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:param name="titre-fonds" as="xs:string" select="'Sources manuscrites'"/>
-    <xsl:param name="titre-imprimees" as="xs:string" select="'Sources imprimées'"/>
-    <xsl:variable name="fonds" select="$liste/tei:bibl[replace(@xml:id, '\d+$', '') = $depots]"/>
-    <div class="biblio-groupe">
-      <xsl:if test="$liste/tei:head">
-        <h2 class="biblio-rubrique"><xsl:apply-templates select="$liste/tei:head[1]/node()"/></h2>
-      </xsl:if>
-      <xsl:if test="$fonds">
-        <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-fonds"/></h3>
-        <xsl:for-each-group select="$fonds" group-by="replace(@xml:id, '\d+$', '')">
-          <div class="biblio-fonds">
-            <h4 class="biblio-depot"><xsl:value-of select="$noms[index-of($depots, current-grouping-key())[1]]"/></h4>
-            <xsl:for-each select="current-group()">
-              <xsl:call-template name="biblio-notice">
-                <xsl:with-param name="cote" select="true()"/>
-              </xsl:call-template>
-            </xsl:for-each>
-          </div>
-        </xsl:for-each-group>
-      </xsl:if>
-      <xsl:if test="$liste/tei:bibl except $fonds">
-        <xsl:if test="$fonds">
-          <h3 class="biblio-sous-titre"><xsl:value-of select="$titre-imprimees"/></h3>
-        </xsl:if>
-        <xsl:for-each select="$liste/tei:bibl except $fonds">
-          <xsl:call-template name="biblio-notice">
-            <xsl:with-param name="lien-base" select="$lien-base"/>
-          </xsl:call-template>
-        </xsl:for-each>
-      </xsl:if>
-      <xsl:apply-templates select="$liste/*[not(self::tei:head or self::tei:bibl)]"/>
-    </div>
-  </xsl:template>
-
-  <xsl:template name="biblio-notice">
-    <xsl:param name="cote" as="xs:boolean" select="false()"/>
-    <xsl:param name="lien-base" as="xs:string" select="''"/>
-    <xsl:variable name="t" select="normalize-space(.)"/>
-    <p class="biblio-notice">
-      <xsl:if test="@xml:id">
-        <xsl:attribute name="id" select="@xml:id"/>
-      </xsl:if>
-      <xsl:choose>
-        <xsl:when test="$cote and matches($t, '^.+?[\s&#160;]:[\s&#160;]')">
-          <span class="biblio-cote"><xsl:value-of select="replace($t, '^(.+?)[\s&#160;]+:[\s&#160;].*$', '$1', 's')"/></span>
-          <xsl:text>&#160;: </xsl:text>
-          <xsl:value-of select="replace($t, '^.+?[\s&#160;]+:[\s&#160;]+(.*)$', '$1', 's')"/>
-        </xsl:when>
-        <xsl:when test="@corresp and $lien-base != ''">
-          <a class="biblio-lien bibl" href="{concat($lien-base, @corresp)}">
-            <xsl:apply-templates select="node()" mode="biblio"/>
-          </a>
-        </xsl:when>
-        <xsl:otherwise>
-          <xsl:apply-templates select="node()" mode="biblio"/>
-        </xsl:otherwise>
-      </xsl:choose>
-    </p>
-  </xsl:template>
-
-  <xsl:template match="tei:author | tei:editor" mode="biblio">
-    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
-  </xsl:template>
-
-  <xsl:template match="tei:surname | tei:forename" mode="biblio">
-    <span class="{local-name()}"><xsl:apply-templates select="node()" mode="biblio"/></span>
-  </xsl:template>
-
-  <xsl:template match="tei:title[@level = 'a']" mode="biblio">
-    <span class="biblio-titre-article">«&#160;<xsl:apply-templates select="node()" mode="biblio"/>&#160;»</span>
-  </xsl:template>
-
-  <xsl:template match="tei:title" mode="biblio">
-    <cite class="title"><xsl:apply-templates select="node()" mode="biblio"/></cite>
-  </xsl:template>
-
-  <xsl:template match="node()" mode="biblio" priority="-1">
-    <xsl:apply-templates select="."/>
-  </xsl:template>
 
   <xsl:template match="tei:ref/tei:bibl" priority="30"><xsl:apply-templates/></xsl:template>
 
