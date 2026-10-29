@@ -549,6 +549,34 @@
     <a href="?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
   </xsl:template>
 
+  <!-- Renvois internes du texte : ref target="#carnet1-page001" corresp="#carnet1" (602 cas),
+       ref target="#index-personnes-A" (361), ref target="#personDelescluzeCharles" (10).
+       hteiml les rendait en <a> sans href — bleus et non cliquables, ce que la relecture du
+       2026-10-29 a signalé sur introduction-partie-4-3 (« référence affichage bibliographie
+       bizarre »). Lien réel quand la ressource visée est connue (@corresp, ou l'index des
+       personnes, seule ressource dont les ancres ne portent pas le préfixe du document) ;
+       simple texte sinon. -->
+  <xsl:template match="tei:ref[starts-with(@target, '#')][not(@type = 'bibl')]" priority="24">
+    <xsl:variable name="cible" select="substring-after(@target, '#')"/>
+    <!-- Les ancres de l'ancien menu alphabétique de l'index (index-personnes-A, -B…) n'existent plus :
+         « Index des personnes » est reconstruit par dl-index-complet. On renvoie alors à la page. -->
+    <xsl:variable name="ancre" select="if (starts-with($cible, 'index-personnes-')) then 'index-personnes' else $cible"/>
+    <xsl:variable name="ressource">
+      <xsl:choose>
+        <xsl:when test="@corresp"><xsl:value-of select="substring-after(@corresp, '#')"/></xsl:when>
+        <xsl:when test="starts-with($cible, 'index-personnes') or starts-with($cible, 'person')">index-personnes</xsl:when>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:choose>
+      <xsl:when test="string($ressource) != ''">
+        <a class="dl-renvoi" href="?refId={$ressource}#{$ancre}"><xsl:apply-templates/></a>
+      </xsl:when>
+      <xsl:otherwise>
+        <span class="dl-renvoi"><xsl:apply-templates/></span>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
