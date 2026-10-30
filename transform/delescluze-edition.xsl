@@ -712,4 +712,17 @@
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
+  <!-- 2026-10-30 (relecture, proposition A) : paragraphe coupé par un changement de page (pb break="no", 186) :
+       classe coupe-fin sur la fin de page, coupe-reprise sur la reprise ; flèche et reprise sans alinéa en CSS. -->
+  <xsl:template match="tei:p[tei:pb[@break = 'no']]" priority="50" version="3.0">
+    <xsl:variable name="c" select="node()[not(self::text()[normalize-space() = ''])]"/>
+    <xsl:variable name="k" select="('coupe-fin'[$c[last()][self::tei:pb[@break = 'no']]], 'coupe-reprise'[$c[1][self::tei:pb[@break = 'no']]])"/>
+    <xsl:variable name="r"><xsl:next-match/></xsl:variable>
+    <xsl:for-each select="$r/node()">
+      <xsl:choose>
+        <xsl:when test="self::*"><xsl:copy><xsl:copy-of select="@*"/><xsl:attribute name="class" select="normalize-space(string-join((@class, $k), ' '))"/><xsl:copy-of select="node()"/></xsl:copy></xsl:when>
+        <xsl:otherwise><xsl:copy-of select="."/></xsl:otherwise>
+      </xsl:choose>
+    </xsl:for-each>
+  </xsl:template>
 </xsl:transform>
