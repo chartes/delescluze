@@ -37,18 +37,6 @@
 
   <xsl:variable name="accents-to">aaaaaaceeeeiiiinooooouuuuyAAAAAACEEEEIIIINOOOOOUUUUY</xsl:variable>
 
-  <!-- Index des personnes en liste, sur le modèle des index des cartulaires (2026-10-27 ; remplace
-       le tableau triable et filtrable du 2026-10-13) : une entrée par personne, @xml:id gardé en
-       ancre (?refId=index-personnes#personX). Vedette en petites capitales (CSS), dates, fonction,
-       formes du nom, notice, autorités, mentions (liens par carnet, lettre, passage). Styles :
-       delescluze.customCss.css, bloc « INDEX DES PERSONNES EN LISTE ». -->
-  <xsl:function name="dl:source" as="xs:string" xmlns:dl="urn:delescluze:xsl" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-    <xsl:param name="liste" as="element()"/>
-    <xsl:variable name="g" select="$liste/tei:ref[@type = 'groupe'][1]"/>
-    <xsl:sequence select="if (starts-with($g/@target, '#lettre')) then 'Lettres'
-                          else if (starts-with($g/@target, '#passage')) then 'Passages rédigés'
-                          else normalize-space($g)"/>
-  </xsl:function>
 
   <!-- ==== 1. HISTORIQUE : surcharge reprise de la feuille de l'ÉLEC (rendu du texte de l'édition) ==== -->
 
@@ -383,7 +371,6 @@
 
   <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
 
-  <xsl:template match="tei:ab[@type = 'tableau']" priority="20"><xsl:apply-templates/></xsl:template>
 
   <xsl:template name="dl-mois-liste">
     <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
@@ -545,9 +532,6 @@
     </a>
   </xsl:template>
 
-  <xsl:template match="tei:ref[starts-with(@target, '#le-projet-')]" priority="25">
-    <a href="?refId={substring-after(@target, '#')}"><xsl:apply-templates/></a>
-  </xsl:template>
 
   <!-- Renvois internes du texte : ref target="#carnet1-page001" corresp="#carnet1" (602 cas),
        ref target="#index-personnes-A" (361), ref target="#personDelescluzeCharles" (10).
