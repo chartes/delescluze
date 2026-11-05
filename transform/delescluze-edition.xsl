@@ -598,6 +598,8 @@
                   <p class="dl-fiche-bio"><xsl:apply-templates/></p>
                 </xsl:for-each>
                 <xsl:apply-templates select="tei:note[@type = 'seeAlso']"/>
+                <!-- 2026-11-05 : pas d'autorité qui renvoie à un ancien site (*.enc.sorbonne.fr, fermés) -->
+                <xsl:variable name="autorites" select="$autorites[not(matches(if (normalize-space(@corresp)) then normalize-space(@corresp) else normalize-space(.), '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr'))]"/>
                 <xsl:if test="$autorites">
                   <p class="dl-fiche-autorites">
                     <span class="dl-etiquette">Autorités : </span>
@@ -708,5 +710,17 @@
         <xsl:otherwise><xsl:copy-of select="."/></xsl:otherwise>
       </xsl:choose>
     </xsl:for-each>
+  </xsl:template>
+  <!-- 2026-11-05 (Maxime : « l'ancien site va être désactivé ») : anciens sites (*.enc.sorbonne.fr) fermés, plus aucun
+       lien vers eux ; le texte reste. Les réécritures vers dots-vue de cette feuille (priorité plus forte) passent avant. -->
+  <xsl:template match="tei:ref[matches(@target, '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr')]
+                       | tei:ptr[matches(@target, '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr')]" mode="#all" version="3.0" priority="1">
+    <xsl:choose>
+      <xsl:when test="normalize-space(.) != '' or *"><xsl:apply-templates mode="#current"/></xsl:when>
+      <xsl:otherwise><xsl:value-of select="@target"/></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+  <xsl:template match="tei:idno[matches(normalize-space(.), '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr')]" mode="#all" version="3.0" priority="1">
+    <span class="idno"><xsl:value-of select="normalize-space(.)"/></span>
   </xsl:template>
 </xsl:transform>
