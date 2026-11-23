@@ -5,10 +5,9 @@
   xmlns:tei="http://www.tei-c.org/ns/1.0"
   xmlns:epub="http://www.idpf.org/2007/ops"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
-  xmlns:tf="urn:elec:tableau-filtrable"
   xmlns:dl="urn:delescluze:xsl"
   xmlns:bib="urn:elec:bibliographie"
-  exclude-result-prefixes="tei epub xs tf dl bib">
+  exclude-result-prefixes="tei epub xs dl bib">
   <!-- ==== 0. DÉCLARATIONS : imports, sortie, paramètres, variables, clés, fonctions ==== -->
 
   <!-- Delescluze : surcharge de hteiml, reconstruite le 13/10/2026 en partant du rendu
@@ -28,7 +27,6 @@
        textes insérés, tableaux de comptes. -->
   <xsl:import href="../../renderers/hteiml/xsl/tei2html.xsl"/>
 
-  <xsl:import href="tableau-filtrable.xsl"/>
   <xsl:import href="bibliographie.xsl"/><!-- bibliographies : module commun (2026-10-15) -->
 
   <xsl:output indent="no"/>
@@ -39,19 +37,6 @@
 
 
   <!-- ==== 1. HISTORIQUE : surcharge reprise de la feuille de l'ÉLEC (rendu du texte de l'édition) ==== -->
-
-  <!-- Page à fac-similé : deux colonnes, comme l'ÉLEC (section#facsimile, section#text ;
-       des classes ici, un carnet servi entier porte plusieurs pages). -->
-  <xsl:template match="tei:div[@type = 'page'][tei:figure[@type = 'facsimile']]" priority="20">
-    <section class="dl-page" id="{@xml:id}">
-      <section class="dl-facsimile">
-        <xsl:apply-templates select="tei:figure[@type = 'facsimile']"/>
-      </section>
-      <section class="dl-text">
-        <xsl:apply-templates select="node() except tei:figure[@type = 'facsimile']"/>
-      </section>
-    </section>
-  </xsl:template>
 
   <!-- ==== 2. BLOCS HTEIML GÉNÉRIQUES : enveloppe dts:wrapper, notes, apparat critique, bibliographie (listBibl) ==== -->
 
@@ -64,11 +49,16 @@
     </xsl:if>
   </xsl:template>
 
-  <xsl:template match="tei:note[@type = 'apparatus']" priority="20">
-    <span class="app" tabindex="0">
-      <span class="noteAnchor">[<xsl:value-of select="@n"/>]</span>
-      <span class="apparatusNote"><xsl:value-of select="@n"/>. <xsl:apply-templates/></span>
-    </span>
+  <!-- Numéro des notes d'une lettre : une seule série dans l'ordre du texte (notes de l'auteur puis
+       notes de l'éditeur), au lieu de deux séries qui donnaient « 1, 1, 2 ». Hors lettre, @n. -->
+  <xsl:template name="note-n">
+    <xsl:choose>
+      <xsl:when test="self::tei:note[not(@type = 'apparatus')][ancestor::tei:div[@type = 'lettre']]">
+        <xsl:number count="tei:note[not(@type = 'apparatus')]" level="any" from="tei:div[@type = 'lettre']"/>
+      </xsl:when>
+      <xsl:when test="@n"><xsl:value-of select="@n"/></xsl:when>
+      <xsl:otherwise><xsl:number count="tei:note[not(@resp) and not(@rend) and not(parent::tei:div)]" level="any" from="/"/></xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template name="note">
@@ -490,7 +480,7 @@
     </th>
   </xsl:template>
 
-  <!-- ==== 4. MÉCANISMES COMMUNS : tableau filtrable (tf-*), liens vers l'ancien site (D5), liens internes entre fragments ==== -->
+  <!-- ==== 4. MÉCANISMES COMMUNS : liens vers l'ancien site (D5), liens internes entre fragments ==== -->
 
   <xsl:template name="person-href">
     <xsl:param name="pid"/>
@@ -711,6 +701,12 @@
       </xsl:choose>
     </xsl:for-each>
   </xsl:template>
+
+  <!-- Le TEI source écrit souvent « espace insécable + espace » (« Charles-Étienne&#160; Delescluze ») :
+       l'espace en trop faisait un blanc double. On ne garde que l'insécable. -->
+  <xsl:template match="text()[contains(., '&#160; ') or contains(., '&#160;&#10;')]">
+    <xsl:value-of select="replace(., '&#160;\s+', '&#160;')"/>
+  </xsl:template>
   <!-- 2026-11-05 (Maxime : « l'ancien site va être désactivé ») : anciens sites (*.enc.sorbonne.fr) fermés, plus aucun
        lien vers eux ; le texte reste. Les réécritures vers dots-vue de cette feuille (priorité plus forte) passent avant. -->
   <xsl:template match="tei:ref[matches(@target, '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr')]
@@ -723,4 +719,5 @@
   <xsl:template match="tei:idno[matches(normalize-space(.), '^https?://([a-z0-9-]+\.)*enc\.sorbonne\.fr')]" mode="#all" version="3.0" priority="1">
     <span class="idno"><xsl:value-of select="normalize-space(.)"/></span>
   </xsl:template>
+
 </xsl:transform>
