@@ -395,7 +395,7 @@
           </strong>
         </xsl:when>
         <xsl:otherwise>
-          <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
+          <a class="dl-mois-lien" href="?refId={$page}">
             <xsl:value-of select="$libelle"/>
           </a>
         </xsl:otherwise>
@@ -542,6 +542,9 @@
       </xsl:choose>
     </xsl:variable>
     <xsl:choose>
+      <xsl:when test="starts-with(@corresp, '#carnet')">
+        <a class="dl-renvoi" href="?refId={$cible}"><xsl:apply-templates/></a>
+      </xsl:when>
       <xsl:when test="string($ressource) != ''">
         <a class="dl-renvoi" href="?refId={$ressource}#{$ancre}"><xsl:apply-templates/></a>
       </xsl:when>
@@ -554,6 +557,8 @@
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
+      <!-- Une page de carnet est une page de dots-vue (unit="carnet" au-dessus) : on la vise directement. -->
+      <xsl:when test="starts-with(@corresp, '#carnet')"><xsl:value-of select="substring-after(@target, '#')"/></xsl:when>
       <xsl:when test="@corresp">
         <xsl:value-of select="substring-after(@corresp, '#')"/>
         <xsl:text>#</xsl:text>
