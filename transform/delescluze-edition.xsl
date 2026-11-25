@@ -333,6 +333,8 @@
 
   <xsl:template match="tei:graphic" priority="20">
     <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
+    <!-- 2026-11-25 : image Nakala + manifeste (@corresp) : vignette a.pb, que dots-vue ouvre dans Mirador -->
+    <xsl:if test="starts-with(@url, 'https://') and @corresp"><a class="pb" href="{@url}" data-manifest="{@corresp}"/></xsl:if>
     <a id="{$id}" href="#{$id}">
       <img alt="{normalize-space(.)}">
         <xsl:attribute name="src">
