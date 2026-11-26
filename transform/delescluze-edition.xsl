@@ -49,12 +49,22 @@
     </xsl:if>
   </xsl:template>
 
-  <!-- Numéro des notes d'une lettre : une seule série dans l'ordre du texte (notes de l'auteur puis
-       notes de l'éditeur), au lieu de deux séries qui donnaient « 1, 1, 2 ». Hors lettre, @n. -->
+  <!-- Numéro des notes d'une unité (lettre, carnet, passage = une page de dots-vue depuis le 26/11) :
+       une seule série 1→n dans l'ordre du texte (notes de l'auteur et de l'éditeur ensemble), et
+       l'apparat critique en a→n (puis aa, ab…), continus sur toute l'unité ; le @n du TEI repartait
+       à chaque page. Hors unité, @n. -->
   <xsl:template name="note-n">
     <xsl:choose>
-      <xsl:when test="self::tei:note[not(@type = 'apparatus')][ancestor::tei:div[@type = 'lettre']]">
-        <xsl:number count="tei:note[not(@type = 'apparatus')]" level="any" from="tei:div[@type = 'lettre']"/>
+      <xsl:when test="self::tei:note[@type = 'apparatus'][ancestor::tei:div[@type = ('lettre', 'carnet', 'passage')]]">
+        <xsl:number count="tei:note[@type = 'apparatus']" level="any" from="tei:div[@type = ('lettre', 'carnet', 'passage')]" format="a"/>
+      </xsl:when>
+      <xsl:when test="self::tei:note[not(@type = 'apparatus')][ancestor::tei:div[@type = ('lettre', 'carnet', 'passage')]]">
+        <xsl:number count="tei:note[not(@type = 'apparatus')]" level="any" from="tei:div[@type = ('lettre', 'carnet', 'passage')]"/>
+      </xsl:when>
+      <!-- Pages hors unité (introduction…) : 1→n calculé sur la page ; le TEI a deux n="1" sur introduction-partie-4-3
+           (doublon -bis de septembre), les 7 autres pages à notes donnent le même résultat qu'avec @n. -->
+      <xsl:when test="self::tei:note[not(@type = 'apparatus')][@n][ancestor::tei:div[@type = 'page']]">
+        <xsl:number count="tei:note[not(@type = 'apparatus')][@n]" level="any" from="tei:div[@type = 'page']"/>
       </xsl:when>
       <xsl:when test="@n"><xsl:value-of select="@n"/></xsl:when>
       <xsl:otherwise><xsl:number count="tei:note[not(@resp) and not(@rend) and not(parent::tei:div)]" level="any" from="/"/></xsl:otherwise>
@@ -279,21 +289,19 @@
         <p class="facsimile-absent"><xsl:apply-templates select="tei:p/node()"/></p>
         <p class="facsimile-desc"><xsl:value-of select="normalize-space(tei:figDesc)"/></p>
       </xsl:if>
-      <xsl:if test="normalize-space((tei:graphic/tei:desc | tei:desc)[1]) != ''">
+      <!-- 2026-11-26 (Maxime) : sous la vignette, plus de cote ni de lien vers la salle des inventaires virtuelle des
+           AN (les images sont republiées sur Nakala). La cote reste pour une page sans image numérique. -->
+      <xsl:if test="normalize-space((tei:graphic/tei:desc | tei:desc)[1]) != '' and not(tei:graphic[@corresp])">
         <p class="facsimile-desc">
           <xsl:value-of select="normalize-space((tei:graphic/tei:desc | tei:desc)[1])"/>
         </p>
       </xsl:if>
-      <xsl:if test=".//tei:ptr[@type = 'viewer'][@target]">
-        <p class="viewer-link">
-          <a href="{(.//tei:ptr[@type = 'viewer'])[1]/@target}" target="_blank" rel="noopener">
-            <xsl:text>Voir dans la salle des inventaires virtuelle</xsl:text>
-          </a>
-        </p>
-      </xsl:if>
     </div>
-    <xsl:if test="starts-with($pid, 'carnet')">
-      <xsl:variable name="dates" select="../descendant::tei:div[@type = 'day']/tei:head/tei:date/@when"/>
+    <!-- 26/11 : le carnet entier est une page de dots-vue → dates du carnet et « Aller au mois » une seule fois,
+         sous le fac-similé de sa première page. -->
+    <xsl:variable name="carnet" select="ancestor::tei:div[@type = 'carnet'][1]"/>
+    <xsl:if test="$carnet and . is ($carnet//tei:figure[@type = 'facsimile'])[1]">
+      <xsl:variable name="dates" select="$carnet//tei:div[@type = 'day']/tei:head/tei:date/@when"/>
       <div class="dl-page-nav">
         <xsl:if test="$dates">
           <p class="dl-page-dates">
@@ -334,7 +342,10 @@
   <xsl:template match="tei:graphic" priority="20">
     <xsl:variable name="id"><xsl:call-template name="id"/></xsl:variable>
     <!-- 2026-11-25 : image Nakala + manifeste (@corresp) : vignette a.pb, que dots-vue ouvre dans Mirador -->
+    <!-- 2026-11-26 (Maxime : « deux fois l'image ») : avec un manifeste, la vignette seule ; l'image s'ouvre
+         dans la visionneuse de dots-vue, à côté du texte. Sans manifeste, l'image dans la page. -->
     <xsl:if test="starts-with(@url, 'https://') and @corresp"><a class="pb" href="{@url}" data-manifest="{@corresp}"/></xsl:if>
+    <xsl:if test="not(starts-with(@url, 'https://') and @corresp)">
     <a id="{$id}" href="#{$id}">
       <img alt="{normalize-space(.)}">
         <xsl:attribute name="src">
@@ -357,6 +368,7 @@
         </xsl:attribute>
       </img>
     </a>
+    </xsl:if>
   </xsl:template>
 
   <xsl:template match="tei:head/tei:date" priority="20"><xsl:apply-templates/></xsl:template>
@@ -389,19 +401,11 @@
     <xsl:param name="libelle"/>
     <xsl:param name="ancetre"/>
     <xsl:param name="page"/>
+    <!-- 26/11 : un carnet = une page de dots-vue ; le mois mène à la page du carnet où il commence (ancre). -->
     <li>
-      <xsl:choose>
-        <xsl:when test="../descendant::tei:div[@type = 'day']/tei:head/tei:date[substring(@when, 1, 7) = $id]">
-          <strong class="dl-mois-courant" aria-current="page">
-            <xsl:value-of select="$libelle"/>
-          </strong>
-        </xsl:when>
-        <xsl:otherwise>
-          <a class="dl-mois-lien" href="?refId={$page}">
-            <xsl:value-of select="$libelle"/>
-          </a>
-        </xsl:otherwise>
-      </xsl:choose>
+      <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
+        <xsl:value-of select="$libelle"/>
+      </a>
     </li>
   </xsl:template>
 
@@ -544,9 +548,6 @@
       </xsl:choose>
     </xsl:variable>
     <xsl:choose>
-      <xsl:when test="starts-with(@corresp, '#carnet')">
-        <a class="dl-renvoi" href="?refId={$cible}"><xsl:apply-templates/></a>
-      </xsl:when>
       <xsl:when test="string($ressource) != ''">
         <a class="dl-renvoi" href="?refId={$ressource}#{$ancre}"><xsl:apply-templates/></a>
       </xsl:when>
@@ -559,8 +560,7 @@
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
-      <!-- Une page de carnet est une page de dots-vue (unit="carnet" au-dessus) : on la vise directement. -->
-      <xsl:when test="starts-with(@corresp, '#carnet')"><xsl:value-of select="substring-after(@target, '#')"/></xsl:when>
+      <!-- 26/11 : carnet, lettre, passage = une page de dots-vue, leurs pages = ancres (?refId=carnet1#carnet1-page009). -->
       <xsl:when test="@corresp">
         <xsl:value-of select="substring-after(@corresp, '#')"/>
         <xsl:text>#</xsl:text>
