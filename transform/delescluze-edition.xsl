@@ -49,17 +49,17 @@
     </xsl:if>
   </xsl:template>
 
-  <!-- Numéro des notes d'une unité (lettre, carnet, passage = une page de dots-vue depuis le 26/11) :
+  <!-- Numéro des notes d'une unité (lettre, mois d'un carnet depuis le 27/11, passage = une page de dots-vue) :
        une seule série 1→n dans l'ordre du texte (notes de l'auteur et de l'éditeur ensemble), et
        l'apparat critique en a→n (puis aa, ab…), continus sur toute l'unité ; le @n du TEI repartait
        à chaque page. Hors unité, @n. -->
   <xsl:template name="note-n">
     <xsl:choose>
-      <xsl:when test="self::tei:note[@type = 'apparatus'][ancestor::tei:div[@type = ('lettre', 'carnet', 'passage')]]">
-        <xsl:number count="tei:note[@type = 'apparatus']" level="any" from="tei:div[@type = ('lettre', 'carnet', 'passage')]" format="a"/>
+      <xsl:when test="self::tei:note[@type = 'apparatus'][ancestor::tei:div[@type = ('lettre', 'mois', 'passage')]]">
+        <xsl:number count="tei:note[@type = 'apparatus']" level="any" from="tei:div[@type = ('lettre', 'mois', 'passage')]" format="a"/>
       </xsl:when>
-      <xsl:when test="self::tei:note[not(@type = 'apparatus')][ancestor::tei:div[@type = ('lettre', 'carnet', 'passage')]]">
-        <xsl:number count="tei:note[not(@type = 'apparatus')]" level="any" from="tei:div[@type = ('lettre', 'carnet', 'passage')]"/>
+      <xsl:when test="self::tei:note[not(@type = 'apparatus')][ancestor::tei:div[@type = ('lettre', 'mois', 'passage')]]">
+        <xsl:number count="tei:note[not(@type = 'apparatus')]" level="any" from="tei:div[@type = ('lettre', 'mois', 'passage')]"/>
       </xsl:when>
       <!-- Pages hors unité (introduction…) : 1→n calculé sur la page ; le TEI a deux n="1" sur introduction-partie-4-3
            (doublon -bis de septembre), les 7 autres pages à notes donnent le même résultat qu'avec @n. -->
@@ -260,6 +260,25 @@
     <span class="gapInDel">(illisible)</span>
   </xsl:template>
 
+  <!-- 2026-11-27 (Maxime : « vignette => bande, prev next zoom navigation, clique on met en plein écran ») : en tête d'une
+       lettre, d'un carnet ou d'un passage (une page de dots-vue chacun), la bande de ses images (figure.elec-bande, montée par
+       le bloc 8 de elec.customJs.js) : image IIIF Nakala en taille d'origine (1 000 px, Nakala refuse d'agrandir : plein écran net), reliée à sa page. -->
+  <xsl:template match="tei:div[@type = ('lettre', 'mois', 'passage')]" priority="5">
+    <xsl:variable name="g" select=".//tei:figure[@type = 'facsimile']/tei:graphic[starts-with(@url, 'https://')]"/>
+    <xsl:if test="$g">
+      <figure class="elec-bande" data-cote="droite">
+        <xsl:for-each select="$g">
+          <img src="{@url}" data-cible="{ancestor::tei:div[@type = 'page'][1]/@xml:id}"
+               alt="{normalize-space(replace(string(tei:desc), '^.*?:\s*', ''))}"/>
+        </xsl:for-each>
+      </figure>
+    </xsl:if>
+    <xsl:next-match/>
+  </xsl:template>
+
+  <!-- 27/11 : <head> d'un mois (« avril 1852 ») : titre de la page dans dots-vue, pas répété dans le texte. -->
+  <xsl:template match="tei:div[@type = 'mois']/tei:head" priority="20"/>
+
   <xsl:template match="tei:div[@type = 'postscript']" priority="20">
     <div class="postscript"><xsl:apply-templates/></div>
   </xsl:template>
@@ -297,27 +316,21 @@
         </p>
       </xsl:if>
     </div>
-    <!-- 26/11 : le carnet entier est une page de dots-vue → dates du carnet et « Aller au mois » une seule fois,
-         sous le fac-similé de sa première page. -->
-    <xsl:variable name="carnet" select="ancestor::tei:div[@type = 'carnet'][1]"/>
-    <xsl:if test="$carnet and . is ($carnet//tei:figure[@type = 'facsimile'])[1]">
-      <xsl:variable name="dates" select="$carnet//tei:div[@type = 'day']/tei:head/tei:date/@when"/>
-      <div class="dl-page-nav">
-        <xsl:if test="$dates">
+    <!-- 27/11 : un mois de carnet = une page de dots-vue → ses dates sous le fac-similé de sa première page ; plus
+         d'« Aller au mois » : le sommaire de gauche liste les mois. -->
+    <xsl:variable name="mois" select="ancestor::tei:div[@type = 'mois'][1]"/>
+    <xsl:if test="$mois and . is ($mois//tei:figure[@type = 'facsimile'])[1]">
+      <xsl:variable name="dates" select="$mois//tei:div[@type = 'day']/tei:head/tei:date/@when"/>
+      <xsl:if test="$dates">
+        <div class="dl-page-nav">
           <p class="dl-page-dates">
             <xsl:call-template name="dl-intervalle">
               <xsl:with-param name="a" select="$dates[1]"/>
               <xsl:with-param name="b" select="$dates[last()]"/>
             </xsl:call-template>
           </p>
-        </xsl:if>
-        <details class="dl-mois">
-          <summary>Aller au mois</summary>
-          <ul class="dl-mois-liste">
-            <xsl:call-template name="dl-mois-liste"/>
-          </ul>
-        </details>
-      </div>
+        </div>
+      </xsl:if>
     </xsl:if>
   </xsl:template>
 
@@ -344,7 +357,8 @@
     <!-- 2026-11-25 : image Nakala + manifeste (@corresp) : vignette a.pb, que dots-vue ouvre dans Mirador -->
     <!-- 2026-11-26 (Maxime : « deux fois l'image ») : avec un manifeste, la vignette seule ; l'image s'ouvre
          dans la visionneuse de dots-vue, à côté du texte. Sans manifeste, l'image dans la page. -->
-    <xsl:if test="starts-with(@url, 'https://') and @corresp"><a class="pb" href="{@url}" data-manifest="{@corresp}"/></xsl:if>
+    <!-- 2026-11-27 (Maxime : « vignette => bande ») : plus de vignette ni de Mirador ; les images Nakala sont dans la bande
+         de l'unité (modèle des unités ci-dessous, bloc 8 du JS commun). -->
     <xsl:if test="not(starts-with(@url, 'https://') and @corresp)">
     <a id="{$id}" href="#{$id}">
       <img alt="{normalize-space(.)}">
@@ -375,39 +389,6 @@
 
   <xsl:template match="tei:head/tei:date" mode="title" priority="20"><xsl:apply-templates mode="title"/></xsl:template>
 
-
-  <xsl:template name="dl-mois-liste">
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1851-11</xsl:with-param><xsl:with-param name="libelle">novembre 1851</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-01</xsl:with-param><xsl:with-param name="libelle">janvier 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-02</xsl:with-param><xsl:with-param name="libelle">février 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page001</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-03</xsl:with-param><xsl:with-param name="libelle">mars 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page006</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-04</xsl:with-param><xsl:with-param name="libelle">avril 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page009</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-05</xsl:with-param><xsl:with-param name="libelle">mai 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page031</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-06</xsl:with-param><xsl:with-param name="libelle">juin 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page037</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-07</xsl:with-param><xsl:with-param name="libelle">juillet 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page046</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-08</xsl:with-param><xsl:with-param name="libelle">août 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page051</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-09</xsl:with-param><xsl:with-param name="libelle">septembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page060</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-10</xsl:with-param><xsl:with-param name="libelle">octobre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet1</xsl:with-param><xsl:with-param name="page">carnet1-page074</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-11</xsl:with-param><xsl:with-param name="libelle">novembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page004</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1852-12</xsl:with-param><xsl:with-param name="libelle">décembre 1852</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page011</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-01</xsl:with-param><xsl:with-param name="libelle">janvier 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page016</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-02</xsl:with-param><xsl:with-param name="libelle">février 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page021</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-03</xsl:with-param><xsl:with-param name="libelle">mars 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page025</xsl:with-param></xsl:call-template>
-    <xsl:call-template name="dl-mois-item"><xsl:with-param name="id">1853-04</xsl:with-param><xsl:with-param name="libelle">avril 1853</xsl:with-param><xsl:with-param name="ancetre">carnet2</xsl:with-param><xsl:with-param name="page">carnet2-page030</xsl:with-param></xsl:call-template>
-  </xsl:template>
-
-  <xsl:template name="dl-mois-item">
-    <xsl:param name="id"/>
-    <xsl:param name="libelle"/>
-    <xsl:param name="ancetre"/>
-    <xsl:param name="page"/>
-    <!-- 26/11 : un carnet = une page de dots-vue ; le mois mène à la page du carnet où il commence (ancre). -->
-    <li>
-      <a class="dl-mois-lien" href="?refId={$ancetre}#{$page}">
-        <xsl:value-of select="$libelle"/>
-      </a>
-    </li>
-  </xsl:template>
 
   <xsl:template name="dl-intervalle">
     <xsl:param name="a"/>
@@ -560,7 +541,7 @@
   <xsl:template name="dl-href">
     <xsl:text>?refId=</xsl:text>
     <xsl:choose>
-      <!-- 26/11 : carnet, lettre, passage = une page de dots-vue, leurs pages = ancres (?refId=carnet1#carnet1-page009). -->
+      <!-- 26/11 : lettre, passage, mois d'un carnet (27/11) = une page de dots-vue, leurs pages = ancres (?refId=carnet1-1852-04#carnet1-page009). -->
       <xsl:when test="@corresp">
         <xsl:value-of select="substring-after(@corresp, '#')"/>
         <xsl:text>#</xsl:text>
